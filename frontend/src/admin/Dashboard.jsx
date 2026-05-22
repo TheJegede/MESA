@@ -210,13 +210,20 @@ function Dashboard() {
     return () => clearInterval(id)
   }, [])
 
+  const kpis = liveStats ? [
+    { label: "Tickets Today", value: String(liveStats.tickets_today), trend: "Live", tone: "up", sub: "from backend" },
+    { label: "Auto-Resolution Rate", value: liveStats.auto_resolution_rate + "%", trend: "Agent 1", tone: "up", sub: "handled" },
+    { label: "Dict Jobs This Week", value: String(liveStats.dict_jobs_this_week), trend: "Stable", tone: "neutral", sub: "0 failed" },
+    { label: "Students Flagged", value: String(liveStats.students_flagged_this_week), trend: "Pending review", tone: "warn", sub: "awaiting approval" },
+  ] : KPIS
+
   return (
     <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 24 }}>
 
       {/* Zone 1 */}
       <section>
         <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>
-          {KPIS.map((k) => <KpiCard key={k.label} k={k} />)}
+          {kpis.map((k) => <KpiCard key={k.label} k={k} />)}
         </div>
       </section>
 
