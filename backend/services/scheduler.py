@@ -1,7 +1,9 @@
+import logging
 from apscheduler.schedulers.background import BackgroundScheduler
 from backend.database import SessionLocal
 from backend.agents.agent3_distress import scan_students
 
+logger = logging.getLogger(__name__)
 scheduler = BackgroundScheduler()
 
 
@@ -9,8 +11,8 @@ def _distress_sweep():
     db = SessionLocal()
     try:
         scan_students(db)
-    except Exception:
-        pass
+    except Exception as e:
+        logger.error("Distress sweep failed: %s", e)
     finally:
         db.close()
 

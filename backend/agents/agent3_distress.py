@@ -73,7 +73,7 @@ def scan_students(db: Session) -> list:
             status="pending",
         )
         db.add(flag)
-        db.commit()
         flags_created.append(student_id)
 
+    db.commit()
     return flags_created

@@ -41,7 +41,8 @@ def generate_dictionary(filepath: str) -> dict:
                 for row in reader:
                     field_name = row.get("field_name") or row.get("column_name") or list(row.values())[0]
                     columns.append(field_name)
-            schema_text = open(filepath, encoding="utf-8").read()
+            with open(filepath, encoding="utf-8") as f:
+                schema_text = f.read()
         elif ext == ".json":
             with open(filepath, encoding="utf-8") as f:
                 data = json.load(f)
@@ -70,9 +71,11 @@ def generate_dictionary_confirmed(filepath: str) -> dict:
     ext = os.path.splitext(filepath)[1].lower()
     try:
         if ext == ".csv":
-            schema_text = open(filepath, encoding="utf-8").read()
+            with open(filepath, encoding="utf-8") as f:
+                schema_text = f.read()
         elif ext == ".json":
-            schema_text = json.dumps(json.load(open(filepath, encoding="utf-8")), indent=2)
+            with open(filepath, encoding="utf-8") as f:
+                schema_text = json.dumps(json.load(f), indent=2)
         else:
             return {"error": f"Unsupported file type: {ext}"}
         return _call_ollama_and_save(schema_text, filepath)

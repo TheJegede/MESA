@@ -3,6 +3,8 @@ import re
 import google.generativeai as genai
 from backend.config import GEMINI_API_KEY
 
+genai.configure(api_key=GEMINI_API_KEY)
+
 SYSTEM_PROMPT = """You are MESA Agent 1, an IT help desk triage system for Colorado School of Mines.
 Analyze the submitted support ticket and return ONLY valid JSON with this exact structure:
 {
@@ -25,7 +27,6 @@ Rules:
 
 def classify_ticket(text: str) -> dict:
     try:
-        genai.configure(api_key=GEMINI_API_KEY)
         model = genai.GenerativeModel(
             "gemini-2.0-flash-exp",
             system_instruction=SYSTEM_PROMPT,
