@@ -1,0 +1,502 @@
+[
+  {
+    "text": "I cannot access the Edify data warehouse from my workstation. Getting a 'connection refused' error when trying to pull the enrollment pipeline. This started after the maintenance window last Thursday.",
+    "category": "software_error",
+    "system_affected": "Edify",
+    "severity": "high",
+    "auto_resolved": false,
+    "resolution": null,
+    "topic": "Data Access & Pipeline Errors",
+    "error_type": "connection_refused"
+  },
+  {
+    "text": "The nightly ETL job for the Edify warehouse failed again. Log says: 'ORA-12154: TNS:could not resolve the connect identifier specified.' This is the third time this week.",
+    "category": "data_issue",
+    "system_affected": "Edify",
+    "severity": "high",
+    "auto_resolved": false,
+    "resolution": null,
+    "topic": "Data Access & Pipeline Errors",
+    "error_type": "tns_resolution_failure"
+  },
+  {
+    "text": "My Edify report query keeps timing out after 30 seconds. I'm running a grad enrollment trend report — it was working fine before the SaaS migration. Query involves multiple joins on student_enrollment and term_cohort tables.",
+    "category": "software_error",
+    "system_affected": "Edify",
+    "severity": "medium",
+    "auto_resolved": false,
+    "resolution": null,
+    "topic": "Data Access & Pipeline Errors",
+    "error_type": "query_timeout"
+  },
+  {
+    "text": "Edify is showing stale data — the enrollment numbers I pulled today still reflect last week's counts. The dashboard refresh indicator shows 'Last updated: 7 days ago'. Affects IR reporting deadline.",
+    "category": "data_issue",
+    "system_affected": "Edify",
+    "severity": "high",
+    "auto_resolved": false,
+    "resolution": null,
+    "topic": "Data Access & Pipeline Errors",
+    "error_type": "stale_data_pipeline"
+  },
+  {
+    "text": "I need read access to the Edify financial aid schema for my research project. Currently getting 'Insufficient privileges' when running SELECT on FA_AWARDS_HIST. My PI said this was approved last semester.",
+    "category": "access_request",
+    "system_affected": "Edify",
+    "severity": "medium",
+    "auto_resolved": false,
+    "resolution": null,
+    "topic": "Data Access & Pipeline Errors",
+    "error_type": "insufficient_privileges"
+  },
+  {
+    "text": "Edify pipeline for course grade feed broke overnight. Banner-to-Edify sync job is returning exit code 2 — partial records written but transform step failed mid-run. Downstream grade reports are incomplete.",
+    "category": "data_issue",
+    "system_affected": "Edify",
+    "severity": "high",
+    "auto_resolved": false,
+    "resolution": null,
+    "topic": "Data Access & Pipeline Errors",
+    "error_type": "pipeline_partial_failure"
+  },
+  {
+    "text": "The Edify ad-hoc query tool keeps crashing when I try to export more than 10,000 rows to CSV. Java heap error in the browser console. Tried Chrome and Firefox — same result.",
+    "category": "software_error",
+    "system_affected": "Edify",
+    "severity": "medium",
+    "auto_resolved": true,
+    "resolution": "Increased JVM heap allocation in Edify reporting server config. Export limit temporarily raised to 50k rows. User confirmed resolved.",
+    "topic": "Data Access & Pipeline Errors",
+    "error_type": "export_heap_error"
+  },
+  {
+    "text": "My Edify password expired and I can't reset it through the self-service portal. The reset link in the email leads to a 404 page. I need access restored before my budget meeting at 2pm.",
+    "category": "password_reset",
+    "system_affected": "Edify",
+    "severity": "medium",
+    "auto_resolved": true,
+    "resolution": "Password reset manually by IT admin. User confirmed login successful. Self-service portal link bug filed as separate ticket.",
+    "topic": "Data Access & Pipeline Errors",
+    "error_type": "password_reset_failure"
+  },
+  {
+    "text": "Edify reporting suite shows a blank screen after login on my new departmental laptop. Seems to be a Java runtime issue — the legacy Edify client requires JRE 8 which isn't installed on the new image.",
+    "category": "software_error",
+    "system_affected": "Edify",
+    "severity": "low",
+    "auto_resolved": true,
+    "resolution": "Installed JRE 8 via SCCM software center. Edify client launched successfully after install. Documented for future imaging checklist.",
+    "topic": "Data Access & Pipeline Errors",
+    "error_type": "missing_java_runtime"
+  },
+  {
+    "text": "Our department's Edify data feed for the NSF reporting template is producing null values in the research_expenditure column since the fiscal year rollover. All other columns populated correctly.",
+    "category": "data_issue",
+    "system_affected": "Edify",
+    "severity": "high",
+    "auto_resolved": false,
+    "resolution": null,
+    "topic": "Data Access & Pipeline Errors",
+    "error_type": "null_values_post_rollover"
+  },
+  {
+    "text": "I'm unable to create scheduled reports in Edify. The 'Save Schedule' button is greyed out for my account. This worked last month but not after the latest Edify version update.",
+    "category": "software_error",
+    "system_affected": "Edify",
+    "severity": "low",
+    "auto_resolved": true,
+    "resolution": "Identified permission regression in Edify 4.2 update. Re-applied REPORT_SCHEDULER role to affected user accounts. Issue confirmed resolved.",
+    "topic": "Data Access & Pipeline Errors",
+    "error_type": "permission_regression"
+  },
+  {
+    "text": "The cross-system join between Edify and Banner data is returning duplicate rows since the schema migration. Student records appear twice when joining on SPRIDEN_ID. Affects headcount accuracy.",
+    "category": "data_issue",
+    "system_affected": "Edify",
+    "severity": "high",
+    "auto_resolved": false,
+    "resolution": null,
+    "topic": "Data Access & Pipeline Errors",
+    "error_type": "duplicate_rows_join"
+  },
+  {
+    "text": "Edify warehouse connection drops intermittently for users on the VPN. Works fine on campus network. IT security changed VPN split-tunnel policy last week and this seems correlated.",
+    "category": "network",
+    "system_affected": "Edify",
+    "severity": "medium",
+    "auto_resolved": false,
+    "resolution": null,
+    "topic": "Data Access & Pipeline Errors",
+    "error_type": "vpn_connectivity_drop"
+  },
+  {
+    "text": "Getting 'SSL handshake failed' error when the Edify scheduled report tries to push output to the shared network drive. Cert was renewed last week — likely mismatch.",
+    "category": "software_error",
+    "system_affected": "Edify",
+    "severity": "medium",
+    "auto_resolved": true,
+    "resolution": "Updated SSL certificate reference in Edify export configuration. Re-ran scheduled job manually — completed successfully.",
+    "topic": "Data Access & Pipeline Errors",
+    "error_type": "ssl_certificate_mismatch"
+  },
+  {
+    "text": "Edify dashboard for graduate enrollment is inaccessible — shows 'Data source unavailable' since Monday. Our accreditation report is due Friday. This is blocking multiple analysts.",
+    "category": "data_issue",
+    "system_affected": "Edify",
+    "severity": "high",
+    "auto_resolved": false,
+    "resolution": null,
+    "topic": "Data Access & Pipeline Errors",
+    "error_type": "datasource_unavailable"
+  },
+  {
+    "text": "Cannot log into Banner Self-Service after the SSO migration. Getting 'SAML assertion failed' error. My departmental admin confirmed my account is active in Active Directory.",
+    "category": "software_error",
+    "system_affected": "Banner",
+    "severity": "high",
+    "auto_resolved": false,
+    "resolution": null,
+    "topic": "Authentication & Login Issues",
+    "error_type": "saml_assertion_failure"
+  },
+  {
+    "text": "My Banner account was locked after 5 failed login attempts. I'm certain I'm using the right password — the new MFA flow seems to be counting the MFA step as a failed attempt.",
+    "category": "password_reset",
+    "system_affected": "Banner",
+    "severity": "medium",
+    "auto_resolved": true,
+    "resolution": "Unlocked Banner account. Confirmed MFA misconfiguration causing false failed-attempt counts. Escalated MFA bug to Banner admin team.",
+    "topic": "Authentication & Login Issues",
+    "error_type": "account_lockout_mfa_bug"
+  },
+  {
+    "text": "Banner XE is throwing a 403 Forbidden when I try to access the Accounts Payable module. I had access before the SaaS migration. Role assignment may not have carried over.",
+    "category": "access_request",
+    "system_affected": "Banner",
+    "severity": "medium",
+    "auto_resolved": false,
+    "resolution": null,
+    "topic": "Authentication & Login Issues",
+    "error_type": "role_migration_gap"
+  },
+  {
+    "text": "New faculty hire cannot log into Banner at all. Account was provisioned in AD but Banner role assignment never completed. Start date was yesterday and they need system access urgently.",
+    "category": "access_request",
+    "system_affected": "Banner",
+    "severity": "high",
+    "auto_resolved": false,
+    "resolution": null,
+    "topic": "Authentication & Login Issues",
+    "error_type": "provisioning_incomplete"
+  },
+  {
+    "text": "Banner session times out after exactly 15 minutes regardless of activity. The timeout was supposed to be set to 60 minutes per the new IT policy. Very disruptive during long advising sessions.",
+    "category": "software_error",
+    "system_affected": "Banner",
+    "severity": "low",
+    "auto_resolved": true,
+    "resolution": "Session timeout corrected in Banner XE application server config. Updated from 15 to 60 minutes. User confirmed resolved.",
+    "topic": "Authentication & Login Issues",
+    "error_type": "session_timeout_misconfiguration"
+  },
+  {
+    "text": "Two-factor authentication is not sending the SMS code to my registered phone. The app-based token works but our department policy requires SMS backup. Number is correct in the system.",
+    "category": "software_error",
+    "system_affected": "Banner",
+    "severity": "medium",
+    "auto_resolved": false,
+    "resolution": null,
+    "topic": "Authentication & Login Issues",
+    "error_type": "mfa_sms_delivery_failure"
+  },
+  {
+    "text": "Banner password reset link expires before I receive the email. By the time the email arrives (sometimes 20+ minutes delay), the token is already invalid. Happens consistently.",
+    "category": "password_reset",
+    "system_affected": "Banner",
+    "severity": "medium",
+    "auto_resolved": true,
+    "resolution": "Extended password reset token TTL from 10 to 60 minutes. Email delivery lag traced to spam filter delay — added Banner sender to allowlist.",
+    "topic": "Authentication & Login Issues",
+    "error_type": "reset_token_expiry"
+  },
+  {
+    "text": "After returning from sabbatical my Banner account was disabled per the inactivity policy. Reactivation form submitted to HR two weeks ago but IT never received the trigger. Still locked out.",
+    "category": "access_request",
+    "system_affected": "Banner",
+    "severity": "high",
+    "auto_resolved": false,
+    "resolution": null,
+    "topic": "Authentication & Login Issues",
+    "error_type": "reactivation_workflow_gap"
+  },
+  {
+    "text": "Shared departmental Banner login credential stopped working after the password rotation policy enforcement. Multiple staff rely on this shared account — need a service account alternative.",
+    "category": "access_request",
+    "system_affected": "Banner",
+    "severity": "high",
+    "auto_resolved": false,
+    "resolution": null,
+    "topic": "Authentication & Login Issues",
+    "error_type": "shared_account_rotation_block"
+  },
+  {
+    "text": "Banner login page is loading very slowly — 45 to 60 seconds — when accessed from off-campus. On-campus access is normal. VPN is connected. Started after last week's load balancer config change.",
+    "category": "network",
+    "system_affected": "Banner",
+    "severity": "low",
+    "auto_resolved": false,
+    "resolution": null,
+    "topic": "Authentication & Login Issues",
+    "error_type": "off_campus_latency"
+  },
+  {
+    "text": "Student advisor portal in Banner XE shows 'Unauthorized access' for one specific student record. Other records open fine. No special restrictions noted on that student's account.",
+    "category": "software_error",
+    "system_affected": "Banner",
+    "severity": "medium",
+    "auto_resolved": true,
+    "resolution": "Identified corrupted role-permission record for specific student. Cleared and rebuilt record. Advisor confirmed normal access restored.",
+    "topic": "Authentication & Login Issues",
+    "error_type": "corrupted_permission_record"
+  },
+  {
+    "text": "New grad student account was created with incorrect email domain (@student.mines.edu vs @mymail.mines.edu). Banner and Canvas are now desynced for this student — they can't receive system notifications.",
+    "category": "other",
+    "system_affected": "Banner",
+    "severity": "medium",
+    "auto_resolved": false,
+    "resolution": null,
+    "topic": "Authentication & Login Issues",
+    "error_type": "email_domain_mismatch"
+  },
+  {
+    "text": "Canvas gradebook is not syncing final grades back to Banner after the semester close. Grades show as submitted in Canvas but Banner still shows 'Grade Pending' for 47 students in CSCI 400.",
+    "category": "data_issue",
+    "system_affected": "Canvas",
+    "severity": "high",
+    "auto_resolved": false,
+    "resolution": null,
+    "topic": "LMS Grade Sync Failures",
+    "error_type": "gradebook_sync_failure"
+  },
+  {
+    "text": "Midterm grades I entered in Canvas are not appearing in the Banner self-service portal for students. The sync job log shows 'Authentication token expired' — the integration credentials may need renewal.",
+    "category": "software_error",
+    "system_affected": "Canvas",
+    "severity": "high",
+    "auto_resolved": false,
+    "resolution": null,
+    "topic": "LMS Grade Sync Failures",
+    "error_type": "integration_token_expired"
+  },
+  {
+    "text": "Canvas assignment submissions from students are not being recorded in the gradebook. Students can submit but the grade column remains blank. Affects all assignments created after April 3rd.",
+    "category": "software_error",
+    "system_affected": "Canvas",
+    "severity": "high",
+    "auto_resolved": false,
+    "resolution": null,
+    "topic": "LMS Grade Sync Failures",
+    "error_type": "submission_not_recorded"
+  },
+  {
+    "text": "The Canvas-to-Banner grade passback is duplicating grade entries. Each grade appears twice in the Banner transcript table, inflating GPA calculations for affected students.",
+    "category": "data_issue",
+    "system_affected": "Canvas",
+    "severity": "high",
+    "auto_resolved": false,
+    "resolution": null,
+    "topic": "LMS Grade Sync Failures",
+    "error_type": "grade_passback_duplication"
+  },
+  {
+    "text": "Weighted grade totals in Canvas are calculating incorrectly for one course section. The assignment group weights don't sum to 100% after I added a new extra credit category. Students are seeing inflated percentages.",
+    "category": "software_error",
+    "system_affected": "Canvas",
+    "severity": "medium",
+    "auto_resolved": true,
+    "resolution": "Corrected assignment group weight configuration. Extra credit category set to 0% weight as intended. Gradebook recalculated correctly.",
+    "topic": "LMS Grade Sync Failures",
+    "error_type": "weight_calculation_error"
+  },
+  {
+    "text": "Incomplete grades entered via Canvas are showing as 'F' in the Banner student record instead of 'I'. The grade passback mapping table appears to be missing the Incomplete code.",
+    "category": "data_issue",
+    "system_affected": "Canvas",
+    "severity": "high",
+    "auto_resolved": false,
+    "resolution": null,
+    "topic": "LMS Grade Sync Failures",
+    "error_type": "grade_code_mapping_error"
+  },
+  {
+    "text": "Canvas SpeedGrader is loading a blank page for PDF submissions in my MATH 225 course. Rubric grading is completely blocked. This started after the Canvas LTI update on Monday.",
+    "category": "software_error",
+    "system_affected": "Canvas",
+    "severity": "medium",
+    "auto_resolved": true,
+    "resolution": "LTI tool cache cleared and PDF preview service restarted. SpeedGrader loading confirmed normal. Canvas vendor notified of regression.",
+    "topic": "LMS Grade Sync Failures",
+    "error_type": "speedgrader_blank_page"
+  },
+  {
+    "text": "Transfer credit grades from Banner are not appearing in the Canvas degree audit tool. Students see missing prerequisites on their canvas planner even though the credits are in Banner.",
+    "category": "data_issue",
+    "system_affected": "Canvas",
+    "severity": "medium",
+    "auto_resolved": false,
+    "resolution": null,
+    "topic": "LMS Grade Sync Failures",
+    "error_type": "transfer_credit_sync_gap"
+  },
+  {
+    "text": "Two students in CHEM 310 have the same M-Number but different Canvas user IDs due to a data entry error at admission. Grade sync is failing for one of them with a 'duplicate key' error.",
+    "category": "data_issue",
+    "system_affected": "Canvas",
+    "severity": "medium",
+    "auto_resolved": false,
+    "resolution": null,
+    "topic": "LMS Grade Sync Failures",
+    "error_type": "duplicate_student_id"
+  },
+  {
+    "text": "OneDrive sync client on my office workstation is stuck at 'Processing changes' for 3 days. About 4 GB of research data files have not synced. The client shows no errors — just spinning.",
+    "category": "software_error",
+    "system_affected": "OneDrive",
+    "severity": "medium",
+    "auto_resolved": false,
+    "resolution": null,
+    "topic": "Cloud Storage Sync Errors",
+    "error_type": "sync_client_stuck"
+  },
+  {
+    "text": "Files I'm co-authoring in OneDrive with my research collaborator keep showing version conflicts. We're getting 'File in use by another user' errors even when working at different times. Files are on a shared drive.",
+    "category": "software_error",
+    "system_affected": "OneDrive",
+    "severity": "medium",
+    "auto_resolved": true,
+    "resolution": "Disabled legacy lock files on shared folder. Cleared local cache and resynced. Co-authoring sessions confirmed working. Advised on concurrent edit best practices.",
+    "topic": "Cloud Storage Sync Errors",
+    "error_type": "version_conflict_coauthoring"
+  },
+  {
+    "text": "OneDrive storage quota for my departmental account jumped from 1 TB to 100 GB without notice. I'm now over quota and uploads are blocked. IT policy email said the change was scheduled but no date was given.",
+    "category": "access_request",
+    "system_affected": "OneDrive",
+    "severity": "high",
+    "auto_resolved": false,
+    "resolution": null,
+    "topic": "Cloud Storage Sync Errors",
+    "error_type": "quota_reduction_blocked"
+  },
+  {
+    "text": "SharePoint-connected OneDrive folder for the Engineering department is no longer syncing to local machines after the M365 tenant migration. The sync client says 'Library not found'.",
+    "category": "software_error",
+    "system_affected": "OneDrive",
+    "severity": "high",
+    "auto_resolved": false,
+    "resolution": null,
+    "topic": "Cloud Storage Sync Errors",
+    "error_type": "library_not_found_post_migration"
+  },
+  {
+    "text": "OneDrive is uploading files with corrupted names — special characters in filenames (parentheses, ampersands) are being replaced with underscores. This is breaking our lab naming convention.",
+    "category": "software_error",
+    "system_affected": "OneDrive",
+    "severity": "low",
+    "auto_resolved": true,
+    "resolution": "Documented OneDrive special character restrictions for affected team. Provided rename script using allowed characters. Team confirmed working.",
+    "topic": "Cloud Storage Sync Errors",
+    "error_type": "filename_character_encoding"
+  },
+  {
+    "text": "Shared OneDrive links I'm sending to external collaborators (non-Mines email) are being blocked. The link creation dialog shows 'External sharing disabled by organization policy'.",
+    "category": "access_request",
+    "system_affected": "OneDrive",
+    "severity": "medium",
+    "auto_resolved": false,
+    "resolution": null,
+    "topic": "Cloud Storage Sync Errors",
+    "error_type": "external_sharing_blocked"
+  },
+  {
+    "text": "OneDrive backup of my desktop folder stopped running silently. I noticed my recent files weren't in OneDrive — the known folder move feature seems to have been disabled during a group policy update.",
+    "category": "software_error",
+    "system_affected": "OneDrive",
+    "severity": "medium",
+    "auto_resolved": true,
+    "resolution": "Re-enabled Known Folder Move via GPO. OneDrive desktop sync confirmed active. User verified recent files now syncing correctly.",
+    "topic": "Cloud Storage Sync Errors",
+    "error_type": "known_folder_move_disabled"
+  },
+  {
+    "text": "OneDrive sync is extremely slow on-campus — getting under 1 Mbps despite gigabit network connection. Happens only with OneDrive; SharePoint web interface is fine. Throttling policy may be in effect.",
+    "category": "network",
+    "system_affected": "OneDrive",
+    "severity": "low",
+    "auto_resolved": false,
+    "resolution": null,
+    "topic": "Cloud Storage Sync Errors",
+    "error_type": "sync_throttling"
+  },
+  {
+    "text": "I cannot view my Workday pay stub for the current pay period. The Payroll module shows 'Data not yet available' but my colleagues in the same department can see theirs. Payroll confirmed I was paid.",
+    "category": "data_issue",
+    "system_affected": "Workday",
+    "severity": "medium",
+    "auto_resolved": false,
+    "resolution": null,
+    "topic": "Payroll Data Visibility",
+    "error_type": "pay_stub_not_visible"
+  },
+  {
+    "text": "Workday is showing my job title as 'Adjunct Faculty' instead of 'Assistant Professor' following the HR system update last month. This is causing incorrect salary band assignments in the compensation module.",
+    "category": "data_issue",
+    "system_affected": "Workday",
+    "severity": "high",
+    "auto_resolved": false,
+    "resolution": null,
+    "topic": "Payroll Data Visibility",
+    "error_type": "job_title_data_error"
+  },
+  {
+    "text": "New employee onboarding — cannot access Workday at all. Browser redirects to Mines SSO login but after authenticating it loops back to the login page. Account was created in Workday by HR yesterday.",
+    "category": "software_error",
+    "system_affected": "Workday",
+    "severity": "high",
+    "auto_resolved": false,
+    "resolution": null,
+    "topic": "Payroll Data Visibility",
+    "error_type": "sso_login_loop"
+  },
+  {
+    "text": "Graduate assistant stipend payments are not reflected in Workday for the current semester. The appointments were entered in Banner but the Workday-Banner integration is not propagating the stipend amounts.",
+    "category": "data_issue",
+    "system_affected": "Workday",
+    "severity": "high",
+    "auto_resolved": false,
+    "resolution": null,
+    "topic": "Payroll Data Visibility",
+    "error_type": "stipend_integration_gap"
+  },
+  {
+    "text": "The Workday time tracking module is rounding my clock-in entries to the nearest 15 minutes, which is causing underpayment for hourly staff. This rounding was not in place before the July system update.",
+    "category": "software_error",
+    "system_affected": "Workday",
+    "severity": "high",
+    "auto_resolved": false,
+    "resolution": null,
+    "topic": "Payroll Data Visibility",
+    "error_type": "time_rounding_error"
+  },
+  {
+    "text": "I cannot access my W-2 in Workday. The Tax Documents section shows 'No documents available' even though I've been employed here for 3 years. Need this for loan application by end of week.",
+    "category": "access_request",
+    "system_affected": "Workday",
+    "severity": "medium",
+    "auto_resolved": true,
+    "resolution": "Identified permissions gap in Workday self-service role for this employee class. Re-applied correct role. User confirmed W-2 document now accessible.",
+    "topic": "Payroll Data Visibility",
+    "error_type": "tax_document_access_gap"
+  }
+]
