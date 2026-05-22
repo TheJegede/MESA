@@ -28,7 +28,7 @@ def run_pattern_detection(db: Session, threshold: int = None) -> list:
     newly_triggered = []
 
     for system, topic, cnt in rows:
-        cluster = db.query(Cluster).filter_by(system=system).first()
+        cluster = db.query(Cluster).filter_by(system=system, topic=topic).first()
         if cluster:
             cluster.count = cnt
             cluster.last_seen = datetime.datetime.now(datetime.timezone.utc)
