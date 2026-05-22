@@ -21,6 +21,7 @@ def run_pattern_detection(db: Session, threshold: int = None) -> list:
             TicketTag.topic,
             func.count(TicketTag.id).label("cnt"),
         )
+        .filter(TicketTag.system.isnot(None), TicketTag.topic.isnot(None))
         .group_by(TicketTag.system, TicketTag.topic)
         .all()
     )
@@ -35,7 +36,6 @@ def run_pattern_detection(db: Session, threshold: int = None) -> list:
         else:
             cluster = Cluster(topic=topic, system=system, count=cnt)
             db.add(cluster)
-        db.flush()
 
         if cnt >= threshold and not cluster.threshold_hit:
             cluster.threshold_hit = True
