@@ -24,7 +24,7 @@ class Ticket(Base):
     severity = Column(String(20))
     auto_resolved = Column(Boolean, default=False)
     resolution = Column(Text)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
 
 class TicketTag(Base):
@@ -42,7 +42,7 @@ class Cluster(Base):
     topic = Column(String(100))
     system = Column(String(50))
     count = Column(Integer, default=0)
-    last_seen = Column(DateTime, default=datetime.datetime.utcnow)
+    last_seen = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
     threshold_hit = Column(Boolean, default=False)
     agent2_triggered = Column(Boolean, default=False)
 
@@ -54,7 +54,7 @@ class DictJob(Base):
     status = Column(String(20), default="processing")
     artifact_path = Column(String(500))
     triggered_by_cluster = Column(String(100))
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
 
 class DistressFlag(Base):
@@ -68,7 +68,7 @@ class DistressFlag(Base):
     report_path = Column(String(500))
     status = Column(String(20), default="pending")
     reviewed_at = Column(DateTime)
-    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
 
 class EmailLog(Base):
@@ -76,7 +76,7 @@ class EmailLog(Base):
     id = Column(Integer, primary_key=True, index=True)
     to_addr = Column(String(200))
     subject = Column(String(500))
-    sent_at = Column(DateTime, default=datetime.datetime.utcnow)
+    sent_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
     success = Column(Boolean)
     error_msg = Column(Text)
 
@@ -103,20 +103,20 @@ def seed_tickets_if_empty(db):
         data = json.load(f)
     for t in data:
         ticket = Ticket(
-            text=t["text"],
-            category=t["category"],
-            system_affected=t["system_affected"],
-            severity=t["severity"],
-            auto_resolved=t["auto_resolved"],
+            text=t.get("text", ""),
+            category=t.get("category", "other"),
+            system_affected=t.get("system_affected", "other"),
+            severity=t.get("severity", "low"),
+            auto_resolved=t.get("auto_resolved", False),
             resolution=t.get("resolution"),
         )
         db.add(ticket)
         db.flush()
         tag = TicketTag(
             ticket_id=ticket.id,
-            topic=t["topic"],
-            system=t["system_affected"],
-            error_type=t["error_type"],
+            topic=t.get("topic", "unclassified"),
+            system=t.get("system_affected", "other"),
+            error_type=t.get("error_type", "unknown"),
         )
         db.add(tag)
     db.commit()
