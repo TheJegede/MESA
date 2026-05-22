@@ -162,12 +162,13 @@ def trigger_agent2(cluster_id: int, db: Session = Depends(get_db)):
 
 @app.get("/dashboard-stats")
 def dashboard_stats(db: Session = Depends(get_db)):
-    today = datetime.datetime.now(datetime.timezone.utc).date()
-    today_start = datetime.datetime.combine(today, datetime.time.min)
+    # SQLite stores datetimes as naive UTC strings — use naive UTC for comparisons
+    now_utc = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    today_start = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
     tickets_today = db.query(Ticket).filter(Ticket.created_at >= today_start).count()
     total = db.query(Ticket).count() or 1
     auto_res = db.query(Ticket).filter_by(auto_resolved=True).count()
-    week_ago = datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(days=7)
+    week_ago = now_utc - datetime.timedelta(days=7)
     dict_jobs = db.query(DictJob).filter(DictJob.created_at >= week_ago).count()
     students_flagged = db.query(DistressFlag).filter(DistressFlag.created_at >= week_ago).count()
     top_clusters = (
@@ -242,6 +243,12 @@ def generate_dict(
         db.add(log)
         db.commit()
 
+    except HTTPException:
+        raise
+    except Exception as e:
+        job.status = "failed"
+        db.commit()
+        raise HTTPException(status_code=500, detail=str(e))
     finally:
         if os.path.exists(tmp_path):
             os.unlink(tmp_path)
