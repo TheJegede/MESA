@@ -1,28 +1,32 @@
 import smtplib
 import ssl
 import os
+import logging
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.mime.base import MIMEBase
 from email import encoders
 from backend.config import GMAIL_USER, GMAIL_APP_PASSWORD
 
+logger = logging.getLogger(__name__)
+
 
 def send_email(to_addr: str, subject: str, body: str) -> dict:
     """Send plain-text email via Gmail SMTP. Returns {success: bool, error: str|None}."""
     try:
         msg = MIMEMultipart()
-        msg["From"] = GMAIL_USER
+        msg["From"] = f"MESA System <{GMAIL_USER}>"
         msg["To"] = to_addr
         msg["Subject"] = subject
         msg.attach(MIMEText(body, "plain"))
         context = ssl.create_default_context()
-        with smtplib.SMTP("smtp.gmail.com", 587) as server:
+        with smtplib.SMTP("smtp.gmail.com", 587, timeout=10) as server:
             server.starttls(context=context)
             server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
             server.sendmail(GMAIL_USER, to_addr, msg.as_string())
         return {"success": True, "error": None}
     except Exception as e:
+        logger.error("Email send failed to %s: %s", to_addr, e)
         return {"success": False, "error": str(e)}
 
 
@@ -30,7 +34,7 @@ def send_with_attachment(to_addr: str, subject: str, body: str, filepath: str) -
     """Send email with optional file attachment. Returns {success: bool, error: str|None}."""
     try:
         msg = MIMEMultipart()
-        msg["From"] = GMAIL_USER
+        msg["From"] = f"MESA System <{GMAIL_USER}>"
         msg["To"] = to_addr
         msg["Subject"] = subject
         msg.attach(MIMEText(body, "plain"))
@@ -45,10 +49,11 @@ def send_with_attachment(to_addr: str, subject: str, body: str, filepath: str) -
             )
             msg.attach(part)
         context = ssl.create_default_context()
-        with smtplib.SMTP("smtp.gmail.com", 587) as server:
+        with smtplib.SMTP("smtp.gmail.com", 587, timeout=10) as server:
             server.starttls(context=context)
             server.login(GMAIL_USER, GMAIL_APP_PASSWORD)
             server.sendmail(GMAIL_USER, to_addr, msg.as_string())
         return {"success": True, "error": None}
     except Exception as e:
+        logger.error("Email send failed to %s: %s", to_addr, e)
         return {"success": False, "error": str(e)}
