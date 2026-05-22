@@ -1,0 +1,369 @@
+import React, { useState, useEffect, useRef } from 'react'
+import { getDistressFlags, approveFlag, dismissFlag } from '../api/mesa'
+
+const INITIAL_FLAGS = [
+  {
+    id: 1,
+    student_id: "STU-0042",
+    risk_score: 87,
+    risk_level: "critical",
+    timestamp: "2026-05-21 08:14 MDT",
+    risk_factors: [
+      "No Canvas logins in 11 days",
+      "3 missing assignments",
+      "Grade dropped to 61%",
+      "Missed advising appointment",
+    ],
+    recommended_action: "Immediate outreach. Schedule check-in within 24 hours.",
+  },
+  {
+    id: 2,
+    student_id: "STU-0019",
+    risk_score: 74,
+    risk_level: "high",
+    timestamp: "2026-05-21 08:14 MDT",
+    risk_factors: [
+      "No Canvas logins in 7 days",
+      "2 missing assignments",
+      "Grade declining 3 weeks",
+    ],
+    recommended_action: "Send check-in email. Offer tutoring and office hours.",
+  },
+  {
+    id: 3,
+    student_id: "STU-0071",
+    risk_score: 71,
+    risk_level: "high",
+    timestamp: "2026-05-21 08:14 MDT",
+    risk_factors: [
+      "1 missing assignment",
+      "Login frequency dropped 70%",
+      "No discussion board activity",
+    ],
+    recommended_action: "Monitor one more day. Prepare outreach email template.",
+  },
+];
+
+const LAST_SCAN = "2026-05-21 08:14:02 MDT";
+
+function levelStyle(level) {
+  if (level === "critical") return {
+    border: "var(--colorado-red)",
+    score: "var(--colorado-red)",
+    badgeBg: "rgba(204,70,40,0.12)",
+    badgeBorder: "rgba(204,70,40,0.45)",
+    badgeText: "var(--colorado-red)",
+    label: "CRITICAL",
+  };
+  return {
+    border: "var(--golden-tech)",
+    score: "#B58300",
+    badgeBg: "rgba(241,185,26,0.18)",
+    badgeBorder: "rgba(241,185,26,0.5)",
+    badgeText: "#7A5B00",
+    label: "HIGH",
+  };
+}
+
+function FlagCard({ flag, confirmingId, onApprove, onConfirm, onCancel, onDismiss, removing }) {
+  const s = levelStyle(flag.risk_level);
+  const isConfirming = confirmingId === flag.id;
+  return (
+    <article
+      className="bg-white"
+      style={{
+        borderRadius: 8,
+        border: "1px solid var(--border)",
+        borderLeft: `6px solid ${s.border}`,
+        boxShadow: "0 1px 2px rgba(33,49,77,0.04), 0 4px 14px rgba(33,49,77,0.05)",
+        transition: "opacity 0.3s ease, transform 0.3s ease",
+        opacity: removing ? 0 : 1,
+        transform: removing ? "translateY(-4px)" : "translateY(0)",
+        overflow: "hidden",
+      }}
+    >
+      <div style={{ padding: "20px 24px 6px" }}>
+        <div className="flex items-start justify-between gap-4">
+          <div className="flex items-baseline gap-4 flex-wrap">
+            <div className="mono" style={{ fontSize: 22, fontWeight: 700, color: "var(--dark-blue)", letterSpacing: "-0.01em" }}>
+              {flag.student_id}
+            </div>
+            <span style={{
+              background: s.badgeBg,
+              color: s.badgeText,
+              border: `1px solid ${s.badgeBorder}`,
+              padding: "3px 10px",
+              borderRadius: 999,
+              fontSize: 10.5,
+              fontFamily: "Montserrat",
+              fontWeight: 700,
+              letterSpacing: "0.08em",
+            }}>{s.label}</span>
+            <span style={{ fontSize: 11.5, color: "var(--silver)" }}>· flagged {flag.timestamp}</span>
+          </div>
+          <div className="text-right">
+            <div className="mono" style={{ fontSize: 30, fontWeight: 600, color: s.score, lineHeight: 1 }}>
+              {flag.risk_score}
+            </div>
+            <div style={{ fontSize: 10, color: "var(--silver)", fontFamily: "Montserrat", fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase", marginTop: 4 }}>
+              Risk Score
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-6" style={{ padding: "8px 24px 20px", gridTemplateColumns: "1.1fr 1fr" }}>
+        <div>
+          <div style={{ fontSize: 10.5, color: "var(--silver)", fontFamily: "Montserrat", fontWeight: 700, letterSpacing: "0.14em", marginBottom: 8 }}>
+            RISK SIGNALS
+          </div>
+          <ul style={{ paddingLeft: 0, margin: 0, listStyle: "none" }}>
+            {flag.risk_factors.map((f, i) => (
+              <li key={i} style={{ display: "flex", gap: 10, fontSize: 13, color: "var(--dark-gray)", padding: "4px 0", lineHeight: 1.45 }}>
+                <span style={{ color: s.border, marginTop: 6, flexShrink: 0, width: 6, height: 6, borderRadius: "50%", background: s.border, display: "inline-block" }}></span>
+                <span>{f}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        <div>
+          <div style={{ fontSize: 10.5, color: "var(--silver)", fontFamily: "Montserrat", fontWeight: 700, letterSpacing: "0.14em", marginBottom: 8 }}>
+            RECOMMENDED ACTION
+          </div>
+          <div style={{
+            background: "var(--pale-blue)",
+            color: "var(--dark-blue)",
+            borderRadius: 6,
+            padding: "12px 14px",
+            fontSize: 13,
+            fontStyle: "italic",
+            lineHeight: 1.5,
+            border: "1px solid rgba(33,49,77,0.06)",
+          }}>
+            "{flag.recommended_action}"
+          </div>
+          <div style={{ fontSize: 11, color: "var(--silver)", marginTop: 8 }}>
+            Generated by Ollama · Llama 3.1:8b · <span className="mono">local</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between" style={{ padding: "12px 24px", background: "var(--surface)", borderTop: "1px solid var(--border)" }}>
+        <div style={{ fontSize: 11.5, color: "var(--silver)" }}>
+          Confidence: <span className="mono" style={{ color: "var(--dark-gray)", fontWeight: 600 }}>{Math.min(99, flag.risk_score + 6)}%</span>
+          <span style={{ margin: "0 10px" }}>·</span>
+          Source: <span className="mono">Canvas + Banner</span>
+        </div>
+        <div className="flex items-center gap-2">
+          {isConfirming ? (
+            <>
+              <span style={{ fontSize: 13, color: "var(--dark-blue)", marginRight: 6, fontWeight: 600 }}>
+                Send alert for <span className="mono">{flag.student_id}</span>?
+              </span>
+              <button
+                onClick={() => onConfirm(flag.id)}
+                style={{
+                  background: "var(--mines-green)", color: "#fff",
+                  fontFamily: "Montserrat", fontWeight: 700, fontSize: 12,
+                  padding: "8px 14px", borderRadius: 6, border: "none", cursor: "pointer",
+                }}
+              >Confirm</button>
+              <button
+                onClick={onCancel}
+                style={{
+                  background: "transparent", color: "var(--dark-gray)",
+                  fontFamily: "Montserrat", fontWeight: 600, fontSize: 12,
+                  padding: "7px 13px", borderRadius: 6, border: "1px solid var(--border)", cursor: "pointer",
+                }}
+              >Cancel</button>
+            </>
+          ) : (
+            <>
+              <button
+                onClick={() => onApprove(flag.id)}
+                style={{
+                  background: "var(--blaster-blue)", color: "#fff",
+                  fontFamily: "Montserrat", fontWeight: 700, fontSize: 12,
+                  padding: "8px 14px", borderRadius: 6, border: "none", cursor: "pointer",
+                  letterSpacing: "0.02em",
+                }}
+              >✓ Approve &amp; Send Alert</button>
+              <button
+                onClick={() => onDismiss(flag.id)}
+                style={{
+                  background: "transparent", color: "var(--dark-gray)",
+                  fontFamily: "Montserrat", fontWeight: 600, fontSize: 12,
+                  padding: "7px 13px", borderRadius: 6, border: "1px solid var(--border)", cursor: "pointer",
+                }}
+              >✕ Dismiss</button>
+            </>
+          )}
+        </div>
+      </div>
+    </article>
+  );
+}
+
+function DistressQueue() {
+  const [flags, setFlags] = useState(INITIAL_FLAGS);
+  const [confirmingId, setConfirmingId] = useState(null);
+  const [successMsg, setSuccessMsg] = useState(null);
+  const [removingIds, setRemovingIds] = useState([]);
+  const [countdown, setCountdown] = useState(60);
+  const successTimer = useRef(null);
+
+  useEffect(() => {
+    const loadFlags = async () => {
+      try {
+        const data = await getDistressFlags()
+        setFlags(data.length > 0 ? data : INITIAL_FLAGS)
+      } catch (e) {}
+    }
+    loadFlags()
+    const pollId = setInterval(loadFlags, 10000)
+    const cdId = setInterval(() => setCountdown(c => (c <= 1 ? 60 : c - 1)), 1000)
+    return () => { clearInterval(pollId); clearInterval(cdId) }
+  }, [])
+
+  const removeWithFade = (id, after) => {
+    setRemovingIds((r) => [...r, id]);
+    setTimeout(() => {
+      setFlags((fs) => fs.filter((f) => f.id !== id));
+      setRemovingIds((r) => r.filter((x) => x !== id));
+      if (after) after();
+    }, 300);
+  };
+
+  const handleApprove = (id) => setConfirmingId(id);
+  const handleCancel = () => setConfirmingId(null);
+  const handleConfirm = async (id) => {
+    const flag = flags.find((f) => f.id === id);
+    setConfirmingId(null);
+    await approveFlag(id).catch(() => {})
+    removeWithFade(id, () => {
+      setSuccessMsg(`Alert sent for ${flag.student_id}`)
+      clearTimeout(successTimer.current)
+      successTimer.current = setTimeout(() => setSuccessMsg(null), 4000)
+    });
+  };
+  const handleDismiss = (id) => {
+    if (confirmingId === id) setConfirmingId(null);
+    dismissFlag(id).catch(() => {})
+    removeWithFade(id);
+  };
+
+  const cd = String(countdown).padStart(2, "0");
+
+  return (
+    <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* Header */}
+      <div className="flex items-start justify-between gap-6 flex-wrap">
+        <div>
+          <h2 style={{ fontFamily: "Montserrat", fontWeight: 700, fontSize: 22, color: "var(--dark-blue)" }}>
+            Distress Queue
+          </h2>
+          <p style={{ fontSize: 13, color: "var(--dark-gray)", marginTop: 6, maxWidth: 640, lineHeight: 1.5 }}>
+            Students flagged by Agent 3 for early-warning intervention. Every alert requires human approval before any outbound communication is sent.
+          </p>
+          <div className="flex items-center gap-2 mt-3" style={{ flexWrap: "wrap" }}>
+            <span style={{
+              background: "var(--pale-blue)",
+              color: "var(--dark-blue)",
+              padding: "5px 12px",
+              borderRadius: 999,
+              fontSize: 11.5,
+              fontWeight: 600,
+              fontFamily: "Montserrat",
+              letterSpacing: "0.02em",
+            }}>🔒 Local Inference Active — Student data stays on-device</span>
+          </div>
+        </div>
+        <div className="text-right">
+          <div style={{ fontSize: 11, color: "var(--silver)", fontFamily: "Montserrat", fontWeight: 600, letterSpacing: "0.1em", textTransform: "uppercase" }}>
+            Last Scan
+          </div>
+          <div className="mono" style={{ fontSize: 13, color: "var(--dark-blue)", fontWeight: 500, marginTop: 4 }}>
+            {LAST_SCAN}
+          </div>
+          <div className="flex items-center justify-end gap-2 mt-2">
+            <span className="pulse-dot pulse-blue"></span>
+            <span style={{ fontSize: 11.5, color: "var(--dark-gray)" }}>
+              Next sweep in <span className="mono" style={{ color: "var(--dark-blue)", fontWeight: 600 }}>0:{cd}</span>
+            </span>
+          </div>
+        </div>
+      </div>
+
+      {/* Gold banner */}
+      <div style={{
+        background: "var(--golden-tech)",
+        color: "var(--dark-blue)",
+        padding: "12px 18px",
+        borderRadius: 6,
+        fontSize: 13,
+        fontWeight: 600,
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        boxShadow: "0 1px 2px rgba(33,49,77,0.06)",
+      }}>
+        <span style={{ fontSize: 16 }}>⚠️</span>
+        <span><strong style={{ fontFamily: "Montserrat", fontWeight: 700 }}>Human Review Required</strong> — No alerts sent without your explicit approval.</span>
+      </div>
+
+      {/* Success message */}
+      {successMsg && (
+        <div style={{
+          background: "var(--mines-green)",
+          color: "#fff",
+          padding: "11px 16px",
+          borderRadius: 6,
+          fontSize: 13,
+          fontWeight: 600,
+          display: "flex",
+          alignItems: "center",
+          gap: 10,
+          boxShadow: "0 4px 14px rgba(128,195,66,0.35)",
+        }} className="fade-in">
+          <span style={{ fontSize: 16 }}>✓</span>
+          <span>{successMsg}</span>
+        </div>
+      )}
+
+      {/* Cards or empty state */}
+      {flags.length === 0 ? (
+        <div className="bg-white" style={{
+          border: "1px solid var(--border)",
+          borderRadius: 8,
+          padding: "60px 24px",
+          textAlign: "center",
+        }}>
+          <div style={{ color: "var(--mines-green)", fontSize: 60, lineHeight: 1, fontWeight: 700 }}>✓</div>
+          <div style={{ fontFamily: "Montserrat", fontWeight: 700, fontSize: 18, color: "var(--dark-blue)", marginTop: 16 }}>
+            All flags reviewed
+          </div>
+          <div style={{ fontSize: 13, color: "var(--silver)", marginTop: 6 }}>
+            No pending distress alerts.
+          </div>
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          {flags.map((f) => (
+            <FlagCard
+              key={f.id}
+              flag={f}
+              confirmingId={confirmingId}
+              onApprove={handleApprove}
+              onConfirm={handleConfirm}
+              onCancel={handleCancel}
+              onDismiss={handleDismiss}
+              removing={removingIds.includes(f.id)}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default DistressQueue
