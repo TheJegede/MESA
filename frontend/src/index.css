@@ -1,0 +1,71 @@
+@import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700;800&family=Open+Sans:wght@400;500;600&family=Roboto+Mono:wght@400;500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --dark-blue: #21314D;
+  --blaster-blue: #09396C;
+  --light-blue: #879EC3;
+  --pale-blue: #CFDCE9;
+  --colorado-red: #CC4628;
+  --golden-tech: #F1B91A;
+  --earth-blue: #0272DE;
+  --mines-green: #80C342;
+  --silver: #81848A;
+  --dark-gray: #75757D;
+  --surface: #F0F4F8;
+  --border: #CFDCE9;
+}
+
+* { box-sizing: border-box; }
+html, body, #root { height: 100%; margin: 0; }
+body {
+  font-family: 'Open Sans', sans-serif;
+  background: var(--surface);
+  color: var(--dark-blue);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+h1, h2, h3, h4, h5, h6 { font-family: 'Montserrat', sans-serif; margin: 0; }
+.mono { font-family: 'Roboto Mono', monospace; }
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.45; transform: scale(0.85); }
+}
+.pulse-dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  animation: pulse-dot 1.8s ease-in-out infinite;
+}
+.pulse-green { background: var(--mines-green); box-shadow: 0 0 0 0 rgba(128,195,66,0.6); }
+.pulse-blue  { background: var(--earth-blue); }
+.pulse-amber { background: var(--golden-tech); }
+.pulse-red   { background: var(--colorado-red); }
+
+@keyframes badge-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.55; }
+}
+.badge-pulse { animation: badge-pulse 1.6s ease-in-out infinite; }
+
+.fade-out { opacity: 0 !important; transform: translateY(-4px); }
+.fade-in { animation: fade-in 0.35s ease-out both; }
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #CFDCE9; border-radius: 6px; }
+::-webkit-scrollbar-thumb:hover { background: #879EC3; }
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: none; margin: 0;
+}
+input[type="number"] { -moz-appearance: textfield; }
