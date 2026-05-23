@@ -17,11 +17,13 @@ from sqlalchemy.orm import Session
 
 from backend.database import (
     get_db, init_db, seed_tickets_if_empty, SessionLocal,
-    Ticket, TicketTag, Cluster, DictJob, DistressFlag, EmailLog,
+    Ticket, TicketTag, TicketMessage, Cluster, DictJob, DistressFlag, EmailLog,
 )
 from backend.config import CLUSTER_THRESHOLD, GMAIL_USER, ADVISOR_EMAIL, UPLOADS_DIR, IT_TEAM_EMAIL
 from backend.agents.agent1_helpdesk import classify_ticket
 from backend.agents.agent2_dictionary import generate_dictionary_confirmed, scan_schema_for_ferpa
+from backend.agents.agent4_conversation import generate_thread_response
+from backend.services.rag_service import load_knowledge_base
 from backend.services.email_service import send_email, send_with_attachment
 from backend.services.pattern_detector import run_pattern_detection
 from backend.services.scheduler import start_scheduler, stop_scheduler, scheduler
@@ -121,6 +123,7 @@ async def lifespan(app: FastAPI):
         run_pattern_detection(db)
     finally:
         db.close()
+    load_knowledge_base()
     start_scheduler()
     yield
     stop_scheduler()
@@ -149,6 +152,7 @@ class TicketCreate(BaseModel):
 def create_ticket(payload: TicketCreate, db: Session = Depends(get_db)):
     classification = classify_ticket(payload.text)
 
+    now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
     ticket = Ticket(
         text=payload.text,
         category=classification.get("category", "other"),
@@ -156,6 +160,8 @@ def create_ticket(payload: TicketCreate, db: Session = Depends(get_db)):
         severity=classification.get("severity", "medium"),
         auto_resolved=classification.get("auto_resolved", False),
         resolution=classification.get("resolution"),
+        status="ai_responded",
+        last_activity=now,
     )
     db.add(ticket)
     db.flush()
@@ -167,6 +173,15 @@ def create_ticket(payload: TicketCreate, db: Session = Depends(get_db)):
         error_type=classification.get("error_type", "unknown"),
     )
     db.add(tag)
+
+    if classification.get("resolution"):
+        first_msg = TicketMessage(
+            ticket_id=ticket.id,
+            sender="ai",
+            content=classification["resolution"],
+        )
+        db.add(first_msg)
+
     db.commit()
 
     if payload.user_email and ticket.resolution:
@@ -208,6 +223,7 @@ def list_tickets(db: Session = Depends(get_db)):
             "severity": t.severity,
             "auto_resolved": t.auto_resolved,
             "resolution": t.resolution,
+            "status": t.status or "ai_responded",
             "created_at": t.created_at.isoformat() if t.created_at else None,
         }
         for t in tickets
@@ -532,6 +548,172 @@ def dismiss_flag(flag_id: int, db: Session = Depends(get_db)):
     flag.reviewed_at = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
     db.commit()
     return {"status": "dismissed"}
+
+
+# ── GET /tickets/{id}/messages ───────────────────────────────────────────────
+
+@app.get("/tickets/{ticket_id}/messages")
+def get_ticket_messages(ticket_id: int, db: Session = Depends(get_db)):
+    ticket = db.query(Ticket).filter_by(id=ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    messages = (
+        db.query(TicketMessage)
+        .filter_by(ticket_id=ticket_id)
+        .order_by(TicketMessage.created_at)
+        .all()
+    )
+    if not messages and ticket.resolution:
+        return [{"id": 0, "sender": "ai", "content": ticket.resolution,
+                 "created_at": ticket.created_at.isoformat() if ticket.created_at else None}]
+    return [
+        {"id": m.id, "sender": m.sender, "content": m.content,
+         "created_at": m.created_at.isoformat() if m.created_at else None}
+        for m in messages
+    ]
+
+
+# ── POST /tickets/{id}/messages ───────────────────────────────────────────────
+
+class MessageCreate(BaseModel):
+    content: str
+
+
+@app.post("/tickets/{ticket_id}/messages")
+def post_ticket_message(ticket_id: int, payload: MessageCreate, db: Session = Depends(get_db)):
+    ticket = db.query(Ticket).filter_by(id=ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    if ticket.status in ("resolved", "auto_resolved"):
+        raise HTTPException(status_code=400, detail="Ticket is already resolved")
+
+    now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+
+    user_msg = TicketMessage(ticket_id=ticket_id, sender="user", content=payload.content)
+    db.add(user_msg)
+    db.flush()
+
+    history = [
+        {"sender": m.sender, "content": m.content}
+        for m in db.query(TicketMessage)
+        .filter_by(ticket_id=ticket_id)
+        .order_by(TicketMessage.created_at)
+        .all()
+    ]
+
+    ai_result = generate_thread_response(ticket.text, history[:-1], payload.content)
+
+    ai_msg = TicketMessage(ticket_id=ticket_id, sender="ai", content=ai_result["response"])
+    db.add(ai_msg)
+
+    ticket.last_activity = now
+    escalated = False
+
+    if ai_result["escalate"] and ticket.status not in ("escalated", "resolved", "auto_resolved"):
+        ticket.status = "escalated"
+        escalated = True
+        system_msg = TicketMessage(
+            ticket_id=ticket_id,
+            sender="system",
+            content="Your ticket has been escalated to IT staff. A team member will respond shortly.",
+        )
+        db.add(system_msg)
+        db.commit()
+        if IT_TEAM_EMAIL:
+            result = send_email(
+                to_addr=IT_TEAM_EMAIL,
+                subject=f"MESA: Ticket #{ticket_id} escalated — needs IT attention",
+                body=(
+                    f"A support ticket has been escalated after the AI could not resolve it.\n\n"
+                    f"Ticket #{ticket_id}\n"
+                    f"System: {ticket.system_affected}\n"
+                    f"Original issue: {ticket.text[:300]}\n\n"
+                    f"Last user message: {payload.content}\n\n"
+                    f"View thread in MESA admin: http://localhost:5173/admin/escalated"
+                ),
+            )
+            log = EmailLog(
+                to_addr=IT_TEAM_EMAIL,
+                subject=f"Escalation: ticket #{ticket_id}",
+                success=result["success"],
+                error_msg=result.get("error"),
+            )
+            db.add(log)
+            db.commit()
+    else:
+        ticket.status = "ai_responded"
+        db.commit()
+
+    return {
+        "ai_response": ai_result["response"],
+        "escalated": escalated,
+        "ticket_status": ticket.status,
+    }
+
+
+# ── POST /tickets/{id}/resolve ────────────────────────────────────────────────
+
+@app.post("/tickets/{ticket_id}/resolve")
+def resolve_ticket(ticket_id: int, db: Session = Depends(get_db)):
+    ticket = db.query(Ticket).filter_by(id=ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    ticket.status = "resolved"
+    ticket.last_activity = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    db.commit()
+    return {"status": "resolved"}
+
+
+# ── GET /admin/escalated-threads ─────────────────────────────────────────────
+
+@app.get("/admin/escalated-threads")
+def list_escalated_threads(db: Session = Depends(get_db)):
+    tickets = (
+        db.query(Ticket)
+        .filter_by(status="escalated")
+        .order_by(Ticket.last_activity.desc())
+        .all()
+    )
+    result = []
+    for t in tickets:
+        messages = (
+            db.query(TicketMessage)
+            .filter_by(ticket_id=t.id)
+            .order_by(TicketMessage.created_at)
+            .all()
+        )
+        if not messages and t.resolution:
+            msgs = [{"id": 0, "sender": "ai", "content": t.resolution,
+                     "created_at": t.created_at.isoformat() if t.created_at else None}]
+        else:
+            msgs = [{"id": m.id, "sender": m.sender, "content": m.content,
+                     "created_at": m.created_at.isoformat() if m.created_at else None}
+                    for m in messages]
+        result.append({
+            "id": t.id,
+            "text": t.text[:120],
+            "system_affected": t.system_affected,
+            "severity": t.severity,
+            "status": t.status,
+            "last_activity": t.last_activity.isoformat() if t.last_activity else None,
+            "created_at": t.created_at.isoformat() if t.created_at else None,
+            "messages": msgs,
+        })
+    return result
+
+
+# ── POST /admin/tickets/{id}/reply ────────────────────────────────────────────
+
+@app.post("/admin/tickets/{ticket_id}/reply")
+def admin_reply(ticket_id: int, payload: MessageCreate, db: Session = Depends(get_db)):
+    ticket = db.query(Ticket).filter_by(id=ticket_id).first()
+    if not ticket:
+        raise HTTPException(status_code=404, detail="Ticket not found")
+    msg = TicketMessage(ticket_id=ticket_id, sender="staff", content=payload.content)
+    db.add(msg)
+    ticket.last_activity = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    db.commit()
+    return {"status": "sent"}
 
 
 # ── GET /config ───────────────────────────────────────────────────────────────

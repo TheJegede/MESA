@@ -24,6 +24,17 @@ class Ticket(Base):
     severity = Column(String(20))
     auto_resolved = Column(Boolean, default=False)
     resolution = Column(Text)
+    status = Column(String(30), default="ai_responded")
+    last_activity = Column(DateTime, nullable=True)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+
+
+class TicketMessage(Base):
+    __tablename__ = "ticket_messages"
+    id = Column(Integer, primary_key=True, index=True)
+    ticket_id = Column(Integer, ForeignKey("tickets.id"))
+    sender = Column(String(20))  # user | ai | staff
+    content = Column(Text)
     created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
 

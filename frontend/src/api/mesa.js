@@ -96,3 +96,40 @@ export async function notifyItTeam(clusterId) {
     'POST /clusters/notify-it'
   )
 }
+
+export async function getTicketMessages(ticketId) {
+  return _json(await fetch(`${BASE}/tickets/${ticketId}/messages`), `GET /tickets/${ticketId}/messages`)
+}
+
+export async function sendTicketMessage(ticketId, content) {
+  return _json(
+    await fetch(`${BASE}/tickets/${ticketId}/messages`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content }),
+    }),
+    `POST /tickets/${ticketId}/messages`
+  )
+}
+
+export async function resolveTicket(ticketId) {
+  return _json(
+    await fetch(`${BASE}/tickets/${ticketId}/resolve`, { method: 'POST' }),
+    `POST /tickets/${ticketId}/resolve`
+  )
+}
+
+export async function getEscalatedThreads() {
+  return _json(await fetch(`${BASE}/admin/escalated-threads`), 'GET /admin/escalated-threads')
+}
+
+export async function sendAdminReply(ticketId, content) {
+  return _json(
+    await fetch(`${BASE}/admin/tickets/${ticketId}/reply`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ content }),
+    }),
+    `POST /admin/tickets/${ticketId}/reply`
+  )
+}

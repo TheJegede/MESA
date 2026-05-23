@@ -5,6 +5,7 @@ import Dashboard from './admin/Dashboard'
 import TicketClusters from './admin/TicketClusters'
 import DictPanel from './admin/DictPanel'
 import DistressQueue from './admin/DistressQueue'
+import EscalatedThreads from './admin/EscalatedThreads'
 import SubmitTicket from './portal/SubmitTicket'
 import MyTickets from './portal/MyTickets'
 import SchemaUpload from './portal/SchemaUpload'
@@ -17,6 +18,7 @@ function LandingPage() {
   const [passphrase, setPassphrase] = useState('')
   const [error, setError] = useState(false)
   const [shake, setShake] = useState(false)
+  const [showPass, setShowPass] = useState(false)
 
   const handleAdminSubmit = (e) => {
     e.preventDefault()
@@ -33,7 +35,7 @@ function LandingPage() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'linear-gradient(160deg, #09396C 0%, #061F3E 100%)',
+      background: 'linear-gradient(160deg, rgba(9,57,108,0.91) 0%, rgba(6,31,62,0.95) 100%), url(/students-bg.png) center/cover no-repeat',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
@@ -164,26 +166,56 @@ function LandingPage() {
               <label style={{ display: 'block', color: '#7FA8C9', fontSize: 11, fontWeight: 600, letterSpacing: '0.1em', marginBottom: 8 }}>
                 PASSPHRASE
               </label>
-              <input
-                type="password"
-                value={passphrase}
-                onChange={(e) => { setPassphrase(e.target.value); setError(false) }}
-                autoFocus
-                placeholder="Enter passphrase"
-                style={{
-                  width: '100%',
-                  background: 'rgba(255,255,255,0.08)',
-                  border: error ? '1px solid #E05252' : '1px solid rgba(255,255,255,0.18)',
-                  borderRadius: 8,
-                  padding: '10px 14px',
-                  color: '#fff',
-                  fontSize: 14,
-                  outline: 'none',
-                  boxSizing: 'border-box',
-                  fontFamily: 'inherit',
-                  letterSpacing: passphrase ? '0.15em' : 'normal',
-                }}
-              />
+              <div style={{ position: 'relative' }}>
+                <input
+                  type={showPass ? 'text' : 'password'}
+                  value={passphrase}
+                  onChange={(e) => { setPassphrase(e.target.value); setError(false) }}
+                  autoFocus
+                  placeholder="Enter passphrase"
+                  style={{
+                    width: '100%',
+                    background: 'rgba(255,255,255,0.08)',
+                    border: error ? '1px solid #E05252' : '1px solid rgba(255,255,255,0.18)',
+                    borderRadius: 8,
+                    padding: '10px 40px 10px 14px',
+                    color: '#fff',
+                    fontSize: 14,
+                    outline: 'none',
+                    boxSizing: 'border-box',
+                    fontFamily: 'inherit',
+                    letterSpacing: passphrase && !showPass ? '0.15em' : 'normal',
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPass(v => !v)}
+                  style={{
+                    position: 'absolute',
+                    right: 10,
+                    top: '50%',
+                    transform: 'translateY(-50%)',
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: '#7FA8C9',
+                    padding: 4,
+                    display: 'flex',
+                    alignItems: 'center',
+                  }}
+                  tabIndex={-1}
+                >
+                  {showPass ? (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94"/><path d="M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/>
+                    </svg>
+                  ) : (
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>
+                    </svg>
+                  )}
+                </button>
+              </div>
               {error && (
                 <div style={{ color: '#E05252', fontSize: 11, marginTop: 6 }}>Incorrect passphrase.</div>
               )}
@@ -236,6 +268,13 @@ function PortalNav() {
       <Link to="/portal/submit" style={{ color: '#CFDCE9', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>Submit Ticket</Link>
       <Link to="/portal/my-tickets" style={{ color: '#CFDCE9', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>My Tickets</Link>
       <Link to="/portal/schema" style={{ color: '#CFDCE9', fontSize: 13, fontWeight: 600, textDecoration: 'none' }}>Schema Upload</Link>
+      <Link
+        to="/"
+        style={{ marginLeft: 'auto', color: '#7FA8C9', fontSize: 12, fontWeight: 600, textDecoration: 'none', display: 'flex', alignItems: 'center', gap: 6 }}
+      >
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>
+        Home
+      </Link>
     </nav>
   )
 }
@@ -255,8 +294,9 @@ function AdminWrapper({ page }) {
     clusters: 'Ticket Cluster Analytics',
     dictionary: 'Data Dictionary Generator',
     distress: 'Distress Queue',
+    escalated: 'Escalated Threads',
   }
-  const COMPONENTS = { dashboard: Dashboard, clusters: TicketClusters, dictionary: DictPanel, distress: DistressQueue }
+  const COMPONENTS = { dashboard: Dashboard, clusters: TicketClusters, dictionary: DictPanel, distress: DistressQueue, escalated: EscalatedThreads }
   const Component = COMPONENTS[page]
   return (
     <AdminLayout pageTitle={TITLES[page]} currentRoute={page} onNavigate={(r) => window.location.href = `/admin/${r}`}>
@@ -279,6 +319,7 @@ export default function App() {
         <Route path="/admin/clusters" element={<AdminWrapper page="clusters" />} />
         <Route path="/admin/dictionary" element={<AdminWrapper page="dictionary" />} />
         <Route path="/admin/distress" element={<AdminWrapper page="distress" />} />
+        <Route path="/admin/escalated" element={<AdminWrapper page="escalated" />} />
       </Routes>
     </BrowserRouter>
   )
