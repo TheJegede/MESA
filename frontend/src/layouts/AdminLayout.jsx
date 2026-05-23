@@ -79,6 +79,30 @@ function Sidebar({ currentRoute, onNavigate }) {
               icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M12 3l9 16H3L12 3z"/><line x1="12" y1="10" x2="12" y2="14"/><circle cx="12" cy="17" r="0.6" fill="currentColor"/></svg>}
               label="Distress Queue" />
           </nav>
+          <div style={{ margin: "16px 12px 0", borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 12 }}>
+            <a
+              href="/"
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "7px 12px",
+                borderRadius: 8,
+                color: "var(--light-blue)",
+                fontSize: 12,
+                fontWeight: 500,
+                textDecoration: "none",
+                transition: "color 0.15s",
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.color = "#fff"}
+              onMouseLeave={(e) => e.currentTarget.style.color = "var(--light-blue)"}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M19 12H5M12 5l-7 7 7 7"/>
+              </svg>
+              Back to Portal
+            </a>
+          </div>
         </div>
       </div>
 
