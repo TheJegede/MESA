@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react'
+import ReactMarkdown from 'react-markdown'
 import { getTickets, getTicketMessages, sendTicketMessage, resolveTicket } from '../api/mesa'
 
 const SEVERITY_COLORS = { high: '#CC4628', medium: '#F1B91A', low: '#80C342' }
@@ -57,7 +58,20 @@ function Message({ msg }) {
           lineHeight: 1.55,
           border: isStaff ? '1px solid rgba(241,185,26,0.3)' : 'none',
         }}>
-          {msg.content}
+          {isUser ? msg.content : (
+            <ReactMarkdown
+              components={{
+                p: ({ children }) => <p style={{ margin: '0 0 6px' }}>{children}</p>,
+                ol: ({ children }) => <ol style={{ margin: '4px 0', paddingLeft: 18 }}>{children}</ol>,
+                ul: ({ children }) => <ul style={{ margin: '4px 0', paddingLeft: 18 }}>{children}</ul>,
+                li: ({ children }) => <li style={{ marginBottom: 2 }}>{children}</li>,
+                code: ({ children }) => <code style={{ background: 'rgba(9,57,108,0.08)', borderRadius: 3, padding: '1px 4px', fontFamily: 'monospace', fontSize: 12 }}>{children}</code>,
+                strong: ({ children }) => <strong style={{ fontWeight: 700 }}>{children}</strong>,
+              }}
+            >
+              {msg.content}
+            </ReactMarkdown>
+          )}
         </div>
       </div>
     </div>

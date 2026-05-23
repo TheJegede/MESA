@@ -50,14 +50,16 @@ function ThreadCard({ ticket }) {
   const [reply, setReply]       = useState('')
   const [sending, setSending]   = useState(false)
   const [msgs, setMsgs]         = useState(ticket.messages || [])
-  const bottomRef = useRef(null)
+  const msgsBoxRef = useRef(null)
 
   useEffect(() => {
     setMsgs(ticket.messages || [])
   }, [ticket.messages])
 
   useEffect(() => {
-    if (expanded) bottomRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (expanded && msgsBoxRef.current) {
+      msgsBoxRef.current.scrollTop = msgsBoxRef.current.scrollHeight
+    }
   }, [msgs, expanded])
 
   const handleReply = async () => {
@@ -97,9 +99,8 @@ function ThreadCard({ ticket }) {
       {/* Thread */}
       {expanded && (
         <div style={{ borderTop: '1px solid var(--border)', padding: '12px 18px 14px' }}>
-          <div style={{ maxHeight: 340, overflowY: 'auto', marginBottom: 12 }}>
+          <div ref={msgsBoxRef} style={{ maxHeight: 340, overflowY: 'auto', marginBottom: 12 }}>
             {msgs.map((m, i) => <Message key={m.id || i} msg={m} />)}
-            <div ref={bottomRef} />
           </div>
 
           {/* Staff reply */}

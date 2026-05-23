@@ -1,7 +1,7 @@
 import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from backend.database import TicketTag, Cluster, Ticket
+from backend.database import TicketTag, Cluster
 from backend.config import CLUSTER_THRESHOLD
 
 
@@ -36,15 +36,6 @@ def run_pattern_detection(db: Session, threshold: int = None) -> list:
         else:
             cluster = Cluster(topic=topic, system=system, count=cnt)
             db.add(cluster)
-
-        has_data_issue = db.query(Ticket).join(
-            TicketTag, TicketTag.ticket_id == Ticket.id
-        ).filter(
-            TicketTag.system == system,
-            TicketTag.topic == topic,
-            Ticket.category == "data_issue",
-        ).first() is not None
-        cluster.dict_eligible = (system == "Edify") and has_data_issue
 
         if cnt >= threshold and not cluster.threshold_hit:
             cluster.threshold_hit = True

@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react'
-import { getClusters, getTickets, triggerAgent2, getConfig, notifyItTeam } from '../api/mesa'
+import { getClusters, getTickets, getConfig } from '../api/mesa'
 
 const TC_FILTERS = ["All", "Edify", "Banner", "Canvas", "OneDrive", "Workday"];
 
@@ -64,7 +64,7 @@ function SeverityPill({ s }) {
 }
 
 // ---------- cluster row ----------
-function ClusterTableRow({ c, threshold, onTrigger }) {
+function ClusterTableRow({ c, threshold }) {
   const [hover, setHover] = useState(false);
   const aboveThreshold = c.count >= threshold;
   const barColor = aboveThreshold ? "var(--golden-tech)" : "var(--light-blue)";
@@ -76,7 +76,7 @@ function ClusterTableRow({ c, threshold, onTrigger }) {
       onMouseLeave={() => setHover(false)}
       className="grid items-center gap-4 px-5 py-3.5"
       style={{
-        gridTemplateColumns: "44px 110px 1fr 80px 220px 150px 180px",
+        gridTemplateColumns: "44px 110px 1fr 80px 220px 150px",
         background: hover ? "var(--pale-blue)" : "transparent",
         borderTop: "1px solid var(--border)",
         transition: "background 0.15s",
@@ -103,58 +103,35 @@ function ClusterTableRow({ c, threshold, onTrigger }) {
           <span style={{
             background: "transparent", border: "1.5px solid var(--colorado-red)",
             color: "var(--colorado-red)", fontFamily: "Montserrat", fontWeight: 700,
-            fontSize: 10.5, letterSpacing: "0.08em",
+            fontSize: 10.5, letterSpacing: "0.06em",
             padding: "3px 10px", borderRadius: 999, textTransform: "uppercase",
-          }}>Above Threshold</span>
+            whiteSpace: "nowrap",
+          }}>Recurring</span>
         ) : (
           <span style={{
             background: "rgba(135,158,195,0.18)", color: "var(--dark-gray)",
             fontFamily: "Montserrat", fontWeight: 700,
-            fontSize: 10.5, letterSpacing: "0.08em",
+            fontSize: 10.5, letterSpacing: "0.06em",
             padding: "3px 10px", borderRadius: 999, textTransform: "uppercase",
-            border: "1px solid var(--border)",
-          }}>Below Threshold</span>
-        )}
-      </div>
-      <div>
-        {c.agent2_triggered ? (
-          <span style={{ color: "#3F7A1A", fontFamily: "Montserrat", fontWeight: 700, fontSize: 12, letterSpacing: "0.04em" }}>
-            Agent 2 Active ✓
-          </span>
-        ) : c.it_notified ? (
-          <span style={{ color: "#3F7A1A", fontFamily: "Montserrat", fontWeight: 700, fontSize: 12, letterSpacing: "0.04em" }}>
-            IT Notified ✓
-          </span>
-        ) : c.dict_eligible ? (
-          <button
-            onClick={() => triggerAgent2(c.id).then(onTrigger)}
-            style={{
-              background: "transparent", color: "var(--dark-blue)",
-              border: "1.5px solid var(--golden-tech)",
-              fontFamily: "Montserrat", fontWeight: 700, fontSize: 11.5,
-              padding: "5px 11px", borderRadius: 999,
-              cursor: "pointer", letterSpacing: "0.02em",
-            }}>▶ Trigger Agent 2</button>
-        ) : c.threshold_hit ? (
-          <button
-            onClick={() => notifyItTeam(c.id).then(onTrigger)}
-            style={{
-              background: "transparent", color: "var(--colorado-red)",
-              border: "1.5px solid var(--colorado-red)",
-              fontFamily: "Montserrat", fontWeight: 700, fontSize: 11.5,
-              padding: "5px 11px", borderRadius: 999,
-              cursor: "pointer", letterSpacing: "0.02em",
-            }}>✉ Notify IT Team</button>
-        ) : (
-          <span style={{ fontSize: 11, color: "var(--silver)" }}>—</span>
+            border: "1px solid var(--border)", whiteSpace: "nowrap",
+          }}>Emerging</span>
         )}
       </div>
     </div>
   );
 }
 
+const TICKET_STATUS_STYLE = {
+  ai_responded:  { label: "AI Responded",  bg: "rgba(128,195,66,0.16)",   color: "#3F7A1A", border: "rgba(128,195,66,0.4)"   },
+  resolved:      { label: "Resolved",      bg: "rgba(9,57,108,0.12)",     color: "#09396C", border: "rgba(9,57,108,0.3)"     },
+  auto_resolved: { label: "Auto-Resolved", bg: "rgba(128,195,66,0.16)",   color: "#3F7A1A", border: "rgba(128,195,66,0.4)"   },
+  escalated:     { label: "Escalated",     bg: "rgba(241,185,26,0.18)",   color: "#7A5B00", border: "rgba(241,185,26,0.5)"   },
+  open:          { label: "Open",          bg: "rgba(135,158,195,0.18)",  color: "#4A5568", border: "rgba(135,158,195,0.5)"  },
+};
+
 function TicketRow({ t, idx }) {
   const [hover, setHover] = useState(false);
+  const s = TICKET_STATUS_STYLE[t.status] || TICKET_STATUS_STYLE.open;
   return (
     <div
       onMouseEnter={() => setHover(true)}
@@ -174,21 +151,12 @@ function TicketRow({ t, idx }) {
       <div style={{ fontSize: 13, color: "var(--dark-blue)" }}>{t.category}</div>
       <div><SeverityPill s={t.severity} /></div>
       <div>
-        {t.auto_resolved ? (
-          <span style={{
-            background: "rgba(128,195,66,0.16)", color: "#3F7A1A",
-            border: "1px solid rgba(128,195,66,0.4)",
-            fontSize: 11, fontWeight: 700, fontFamily: "Montserrat",
-            padding: "3px 10px", borderRadius: 999, letterSpacing: "0.04em",
-          }}>Auto-Resolved</span>
-        ) : (
-          <span style={{
-            background: "rgba(241,185,26,0.18)", color: "#7A5B00",
-            border: "1px solid rgba(241,185,26,0.5)",
-            fontSize: 11, fontWeight: 700, fontFamily: "Montserrat",
-            padding: "3px 10px", borderRadius: 999, letterSpacing: "0.04em",
-          }}>Escalated</span>
-        )}
+        <span style={{
+          background: s.bg, color: s.color,
+          border: `1px solid ${s.border}`,
+          fontSize: 11, fontWeight: 700, fontFamily: "Montserrat",
+          padding: "3px 10px", borderRadius: 999, letterSpacing: "0.04em",
+        }}>{s.label}</span>
       </div>
       <div className="mono" style={{ fontSize: 11.5, color: "var(--silver)" }}>{t.submitted}</div>
     </div>
@@ -269,7 +237,7 @@ function TicketClusters() {
             Ticket Cluster Analytics
           </h2>
           <p style={{ fontSize: 13, color: "var(--dark-gray)", marginTop: 6, maxWidth: 640, lineHeight: 1.5 }}>
-            Pattern detection identifies systemic issues from ticket volume. Clusters above the trigger threshold can be escalated to Agent 2 for automated triage.
+            Pattern detection identifies recurring complaints and requests from ticket volume. Clusters crossing the threshold indicate a systemic issue requiring attention.
           </p>
         </div>
         <div className="flex items-center gap-2.5">
@@ -294,7 +262,7 @@ function TicketClusters() {
               Cluster Analytics
             </h3>
             <div style={{ fontSize: 11.5, color: "var(--silver)", marginTop: 2 }}>
-              Top 5 cluster topics · last 24h
+              All cluster topics · ranked by volume
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -314,13 +282,13 @@ function TicketClusters() {
           </div>
         </div>
         <TableHeader
-          cols={["#", "System", "Cluster Topic", "Volume", "Distribution", "Status", "Action"]}
-          gridTemplate="44px 110px 1fr 80px 220px 150px 180px"
+          cols={["#", "System", "Cluster Topic", "Volume", "Distribution", "Status"]}
+          gridTemplate="44px 110px 1fr 80px 220px 150px"
         />
         <div>
           {clusters === null
             ? <div style={{ padding: "28px", textAlign: "center", color: "var(--silver)", fontSize: 13 }}>Loading clusters…</div>
-            : clusters.map((c) => <ClusterTableRow key={c.id} c={c} threshold={threshold} onTrigger={load} />)
+            : clusters.map((c) => <ClusterTableRow key={c.id} c={c} threshold={threshold} />)
           }
         </div>
         <div className="px-5 py-3 flex items-center justify-between" style={{ borderTop: "1px solid var(--border)", background: "var(--surface)" }}>

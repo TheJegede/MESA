@@ -306,17 +306,26 @@ def dashboard_stats(db: Session = Depends(get_db)):
     now_utc = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
     last_24h = now_utc - datetime.timedelta(hours=24)
     tickets_today = db.query(Ticket).filter(Ticket.created_at >= last_24h).count()
-    total = db.query(Ticket).count() or 1
-    auto_res = db.query(Ticket).filter_by(auto_resolved=True).count()
+    total = db.query(Ticket).count()
     week_ago = now_utc - datetime.timedelta(days=7)
     dict_jobs = db.query(DictJob).filter(DictJob.created_at >= week_ago).count()
     students_flagged = db.query(DistressFlag).filter(DistressFlag.created_at >= week_ago).count()
     top_clusters = (
         db.query(Cluster).order_by(Cluster.count.desc()).limit(5).all()
     )
+    status_breakdown = {
+        "ai_responded": db.query(Ticket).filter(
+            (Ticket.status == "ai_responded") | (Ticket.status == None)
+        ).count(),
+        "escalated":     db.query(Ticket).filter_by(status="escalated").count(),
+        "resolved":      db.query(Ticket).filter_by(status="resolved").count(),
+        "auto_resolved": db.query(Ticket).filter_by(status="auto_resolved").count(),
+        "open":          db.query(Ticket).filter_by(status="open").count(),
+    }
     return {
         "tickets_today": tickets_today,
-        "auto_resolution_rate": round(auto_res / total * 100, 1),
+        "total_tickets": total,
+        "status_breakdown": status_breakdown,
         "dict_jobs_this_week": dict_jobs,
         "students_flagged_this_week": students_flagged,
         "top_clusters": [

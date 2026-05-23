@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { getDashboardStats, getClusters, getSystemHealth, getDictJobs, getConfig, triggerAgent2, notifyItTeam } from '../api/mesa'
+import { getDashboardStats, getClusters, getSystemHealth, getDictJobs, getConfig } from '../api/mesa'
 
 
 function KpiCard({ k }) {
@@ -36,11 +36,102 @@ function KpiCard({ k }) {
   );
 }
 
-function ClusterRow({ c, max, threshold, onAction }) {
-  const triggered = c.status === "triggered";
+const STATUS_META = [
+  { key: "ai_responded",  label: "AI Responded",  color: "#80C342" },
+  { key: "auto_resolved", label: "Auto-Resolved", color: "#4A90C4" },
+  { key: "resolved",      label: "Resolved",      color: "#09396C" },
+  { key: "escalated",     label: "Escalated",     color: "#F1B91A" },
+  { key: "open",          label: "Open",          color: "#CFDCE9" },
+];
+
+function StatusBreakdownCard({ breakdown, total }) {
+  const safeTotal = total || 1;
+  const autoHandled = (breakdown?.ai_responded || 0) + (breakdown?.auto_resolved || 0) + (breakdown?.resolved || 0);
+  const autoHandledPct = total ? Math.round((autoHandled / safeTotal) * 100) : null;
+
+  return (
+    <div
+      className="bg-white"
+      style={{
+        border: "1px solid var(--border)",
+        borderRadius: 8,
+        boxShadow: "0 1px 2px rgba(33,49,77,0.04), 0 4px 12px rgba(33,49,77,0.04)",
+        padding: "20px 24px 22px",
+      }}
+    >
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", marginBottom: 4 }}>
+        <div>
+          <div style={{ fontSize: 11, fontFamily: "Montserrat", fontWeight: 700, letterSpacing: "0.1em", textTransform: "uppercase", color: "var(--dark-gray)" }}>
+            Ticket Status Breakdown
+          </div>
+          <div style={{ fontSize: 12, color: "var(--silver)", marginTop: 3 }}>
+            {total ?? "—"} tickets across 5 states
+          </div>
+        </div>
+        {autoHandledPct !== null && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <div style={{ width: 8, height: 8, borderRadius: "50%", background: "#80C342" }} />
+            <span style={{ fontSize: 12, fontWeight: 600, color: "var(--dark-gray)", fontFamily: "Montserrat" }}>
+              {autoHandledPct}% auto-handled
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Stacked bar */}
+      <div style={{ display: "flex", height: 16, borderRadius: 999, overflow: "hidden", margin: "14px 0 16px", background: "var(--pale-blue)" }}>
+        {STATUS_META.map(s => {
+          const count = breakdown?.[s.key] || 0;
+          const pct = (count / safeTotal) * 100;
+          return pct > 0 ? (
+            <div key={s.key} style={{ width: pct + "%", background: s.color, transition: "width 0.4s" }} title={`${s.label}: ${count}`} />
+          ) : null;
+        })}
+      </div>
+
+      {/* Mini stat chips */}
+      <div style={{ display: "flex", gap: 12 }}>
+        {STATUS_META.map(s => {
+          const count = breakdown?.[s.key] ?? 0;
+          const pct = total ? Math.round((count / safeTotal) * 100) : 0;
+          return (
+            <div
+              key={s.key}
+              style={{
+                flex: 1,
+                background: "var(--surface)",
+                border: "1px solid var(--border)",
+                borderRadius: 8,
+                padding: "10px 14px",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+                <div style={{ width: 8, height: 8, borderRadius: 2, background: s.color, flexShrink: 0 }} />
+                <span style={{ fontSize: 10.5, fontFamily: "Montserrat", fontWeight: 600, color: "var(--dark-gray)", letterSpacing: "0.04em", whiteSpace: "nowrap" }}>
+                  {s.label}
+                </span>
+              </div>
+              <div style={{ display: "flex", alignItems: "baseline", gap: 5 }}>
+                <span className="mono" style={{ fontSize: 22, fontWeight: 600, color: "var(--dark-blue)", lineHeight: 1 }}>
+                  {breakdown ? count : "—"}
+                </span>
+                {breakdown && (
+                  <span style={{ fontSize: 11, color: "var(--silver)" }}>{pct}%</span>
+                )}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function ClusterRow({ c, max, threshold }) {
   const atThreshold = c.count >= threshold;
   const pct = Math.min(100, Math.round((c.count / max) * 100));
-  const barColor = atThreshold || triggered ? "var(--golden-tech)" : "var(--light-blue)";
+  const barColor = atThreshold ? "var(--golden-tech)" : "var(--light-blue)";
   const [hover, setHover] = useState(false);
 
   return (
@@ -49,7 +140,7 @@ function ClusterRow({ c, max, threshold, onAction }) {
       onMouseLeave={() => setHover(false)}
       className="grid items-center gap-4 px-5 py-3.5"
       style={{
-        gridTemplateColumns: "110px 1fr 220px 64px 200px",
+        gridTemplateColumns: "110px 1fr 220px 64px 120px",
         background: hover ? "var(--pale-blue)" : "transparent",
         transition: "background 0.15s",
         borderTop: "1px solid var(--border)",
@@ -86,35 +177,15 @@ function ClusterRow({ c, max, threshold, onAction }) {
         {c.count}<span style={{ color: "var(--silver)", fontSize: 11 }}> /{max}</span>
       </div>
       <div className="text-right">
-        {triggered && (
+        {atThreshold ? (
           <span style={{
-            background: "var(--golden-tech)", color: "var(--dark-blue)",
-            fontSize: 11, fontWeight: 700, padding: "5px 11px", borderRadius: 999,
-            fontFamily: "Montserrat", letterSpacing: "0.02em",
-          }}>🟠 Agent 2 Active</span>
-        )}
-        {!triggered && atThreshold && c.dict_eligible && (
-          <button
-            onClick={() => triggerAgent2(c.id).then(onAction)}
-            style={{
-              background: "transparent", color: "var(--dark-blue)",
-              border: "1.5px solid var(--golden-tech)",
-              fontSize: 11.5, fontWeight: 700, padding: "5px 11px", borderRadius: 999,
-              fontFamily: "Montserrat", cursor: "pointer", letterSpacing: "0.02em",
-            }}
-          >▶ Trigger Agent 2</button>
-        )}
-        {!triggered && atThreshold && !c.dict_eligible && c.it_notified && (
-          <span style={{ fontSize: 11, color: "#3F7A1A", fontFamily: "Montserrat", fontWeight: 600 }}>IT Notified ✓</span>
-        )}
-        {!triggered && atThreshold && !c.dict_eligible && !c.it_notified && (
-          <button
-            onClick={() => notifyItTeam(c.id).then(onAction)}
-            style={{ fontSize: 11, color: "var(--colorado-red)", fontFamily: "Montserrat", fontWeight: 600, background: "transparent", border: "none", cursor: "pointer", padding: 0 }}
-          >Notify IT →</button>
-        )}
-        {!triggered && !atThreshold && (
-          <span style={{ fontSize: 11, color: "var(--silver)" }}>Below threshold</span>
+            background: "transparent", border: "1.5px solid var(--colorado-red)",
+            color: "var(--colorado-red)", fontSize: 10.5, fontWeight: 700,
+            padding: "3px 9px", borderRadius: 999, fontFamily: "Montserrat",
+            letterSpacing: "0.06em", textTransform: "uppercase",
+          }}>Recurring</span>
+        ) : (
+          <span style={{ fontSize: 11, color: "var(--silver)" }}>Emerging</span>
         )}
       </div>
     </div>
@@ -183,10 +254,7 @@ function Dashboard() {
         getDashboardStats(), getClusters(), getSystemHealth(), getDictJobs(),
       ])
       setLiveStats(stats)
-      setLiveClusters(clusters.map(c => ({
-        ...c,
-        status: c.agent2_triggered ? "triggered" : c.threshold_hit ? "threshold" : "below",
-      })))
+      setLiveClusters(clusters)
       setLiveHealth([
         { name: 'Ollama (Llama 3.1:8b)', latency: '—', status: health.ollama === 'online' ? 'online' : 'offline', detail: 'local inference' },
         { name: 'Gemini Flash', latency: '—', status: 'online', detail: 'cloud API' },
@@ -214,26 +282,30 @@ function Dashboard() {
   }, [fetchAll])
 
   const kpis = liveStats ? [
-    { label: "Tickets (24h)", value: String(liveStats.tickets_today), trend: "Live", tone: "up", sub: "rolling window" },
-    { label: "Auto-Resolution Rate", value: liveStats.auto_resolution_rate + "%", trend: "Agent 1", tone: "up", sub: "handled" },
-    { label: "Dict Jobs This Week", value: String(liveStats.dict_jobs_this_week), trend: "Stable", tone: "neutral", sub: "0 failed" },
-    { label: "Students Flagged", value: String(liveStats.students_flagged_this_week), trend: "Pending review", tone: "warn", sub: "awaiting approval" },
+    { label: "Tickets · Last 24h",  value: String(liveStats.tickets_today),             trend: "Live",           tone: "up",      sub: "rolling window" },
+    { label: "Dict Jobs · This Week", value: String(liveStats.dict_jobs_this_week),      trend: "Stable",         tone: "neutral", sub: "schema uploads"  },
+    { label: "Students Flagged",    value: String(liveStats.students_flagged_this_week), trend: "Pending review", tone: "warn",    sub: "awaiting approval" },
   ] : [
-    { label: "Tickets Today",        value: "—", trend: "—", tone: "neutral", sub: "loading…" },
-    { label: "Auto-Resolution Rate", value: "—", trend: "—", tone: "neutral", sub: "loading…" },
-    { label: "Dict Jobs This Week",  value: "—", trend: "—", tone: "neutral", sub: "loading…" },
-    { label: "Students Flagged",     value: "—", trend: "—", tone: "neutral", sub: "loading…" },
+    { label: "Tickets · Last 24h",    value: "—", trend: "—", tone: "neutral", sub: "loading…" },
+    { label: "Dict Jobs · This Week", value: "—", trend: "—", tone: "neutral", sub: "loading…" },
+    { label: "Students Flagged",      value: "—", trend: "—", tone: "neutral", sub: "loading…" },
   ]
 
   return (
     <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 24 }}>
 
-      {/* Zone 1 */}
+      {/* Zone 1 — 3 equal KPI cards */}
       <section>
-        <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(4, minmax(0, 1fr))" }}>
+        <div className="grid gap-4" style={{ gridTemplateColumns: "repeat(3, minmax(0, 1fr))" }}>
           {kpis.map((k) => <KpiCard key={k.label} k={k} />)}
         </div>
       </section>
+
+      {/* Zone 1b — full-width status breakdown */}
+      <StatusBreakdownCard
+        breakdown={liveStats?.status_breakdown}
+        total={liveStats?.total_tickets}
+      />
 
       {/* Zone 2 — clusters */}
       <section
@@ -273,7 +345,7 @@ function Dashboard() {
         <div>
           {liveClusters === null
             ? <div style={{ padding: "28px", textAlign: "center", color: "var(--silver)", fontSize: 13 }}>Loading clusters…</div>
-            : liveClusters.map((c) => <ClusterRow key={c.id || (c.system + '-' + c.topic)} c={c} max={max} threshold={threshold} onAction={fetchAll} />)
+            : liveClusters.map((c) => <ClusterRow key={c.id || (c.system + '-' + c.topic)} c={c} max={max} threshold={threshold} />)
           }
         </div>
         <div className="px-5 py-3 flex items-center justify-between" style={{ borderTop: "1px solid var(--border)", background: "var(--surface)", borderRadius: "0 0 8px 8px" }}>
