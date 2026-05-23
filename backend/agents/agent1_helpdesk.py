@@ -1,8 +1,10 @@
 import json
+import logging
 import re
 import google.generativeai as genai
 from backend.config import GEMINI_API_KEY
 
+logger = logging.getLogger(__name__)
 genai.configure(api_key=GEMINI_API_KEY)
 
 SYSTEM_PROMPT = """You are MESA Agent 1, an IT help desk triage system for Colorado School of Mines.
@@ -15,7 +17,7 @@ Analyze the submitted support ticket and return ONLY valid JSON with this exact 
   "auto_resolved": true or false,
   "resolution": "Plain English resolution or escalation message",
   "confidence": 0.0 to 1.0,
-  "topic": "short cluster topic phrase",
+  "topic": "one of: Data Pipeline Failure | Login Authentication | Grade Sync Failure | Storage Sync Error | Payroll Data Issue | Access Provisioning | Software Configuration | Network Connectivity | System Integration | Reporting Analytics | General Support",
   "error_type": "short snake_case error type"
 }
 Rules:
@@ -28,7 +30,7 @@ Rules:
 def classify_ticket(text: str) -> dict:
     try:
         model = genai.GenerativeModel(
-            "gemini-2.0-flash-exp",
+            "gemini-flash-latest",
             system_instruction=SYSTEM_PROMPT,
         )
         response = model.generate_content(f"Ticket: {text}")
@@ -47,6 +49,7 @@ def classify_ticket(text: str) -> dict:
             )
         return result
     except Exception as e:
+        logger.error("Agent 1: Gemini classification failed: %s", e)
         return {
             "category": "other",
             "system_affected": "other",

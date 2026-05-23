@@ -30,10 +30,10 @@ def scan_for_ferpa(columns: list) -> list:
     return [col for col in columns if FERPA_PATTERN.search(col)]
 
 
-def generate_dictionary(filepath: str) -> dict:
+def scan_schema_for_ferpa(filepath: str) -> dict:
+    """Scan only — no Ollama call. Used by the async route handler for the sync FERPA check."""
     ext = os.path.splitext(filepath)[1].lower()
     columns = []
-
     try:
         if ext == ".csv":
             with open(filepath, encoding="utf-8") as f:
@@ -41,29 +41,17 @@ def generate_dictionary(filepath: str) -> dict:
                 for row in reader:
                     field_name = row.get("field_name") or row.get("column_name") or list(row.values())[0]
                     columns.append(field_name)
-            with open(filepath, encoding="utf-8") as f:
-                schema_text = f.read()
         elif ext == ".json":
             with open(filepath, encoding="utf-8") as f:
                 data = json.load(f)
             if isinstance(data, list):
                 columns = [item.get("field_name", str(item)) for item in data]
-            schema_text = json.dumps(data, indent=2)
-        else:
-            return {"error": f"Unsupported file type: {ext}"}
-
-        ferpa_fields = scan_for_ferpa(columns)
-        if ferpa_fields:
-            return {
-                "ferpa_flag": True,
-                "sensitive_fields": ferpa_fields,
-                "message": "FERPA-sensitive columns detected. Confirm before generating.",
-            }
-
-        return _call_ollama_and_save(schema_text, filepath)
-
-    except Exception as e:
-        return {"error": f"Local model unavailable or file error: {str(e)}"}
+    except Exception:
+        return {"ferpa_flag": True, "sensitive_fields": []}
+    ferpa_fields = scan_for_ferpa(columns)
+    if ferpa_fields:
+        return {"ferpa_flag": True, "sensitive_fields": ferpa_fields}
+    return {"ferpa_flag": False}
 
 
 def generate_dictionary_confirmed(filepath: str) -> dict:
@@ -92,10 +80,12 @@ def _call_ollama_and_save(schema_text: str, source_path: str) -> dict:
             {"role": "user", "content": prompt},
         ],
     )
-    raw = response.message.content.strip()
-    raw = re.sub(r"^```(?:json)?\s*", "", raw)
-    raw = re.sub(r"\s*```$", "", raw)
-    entries = json.loads(raw)
+    raw = response['message']['content']
+    # extract first [...] block — model may prepend preamble or wrap in code fences
+    match = re.search(r"\[[\s\S]*\]", raw)
+    if not match:
+        raise ValueError(f"No JSON array found in model output: {raw[:200]}")
+    entries = json.loads(match.group(0))
 
     os.makedirs(OUTPUTS_DIR, exist_ok=True)
     timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d_%H%M%S")
@@ -103,7 +93,7 @@ def _call_ollama_and_save(schema_text: str, source_path: str) -> dict:
     out_path = os.path.join(OUTPUTS_DIR, f"dict_{base}_{timestamp}.csv")
 
     with open(out_path, "w", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=["field_name", "data_type", "description", "source_system", "sensitivity", "example_value"])
+        writer = csv.DictWriter(f, fieldnames=["field_name", "data_type", "description", "source_system", "sensitivity", "example_value"], extrasaction="ignore")
         writer.writeheader()
         writer.writerows(entries)
 

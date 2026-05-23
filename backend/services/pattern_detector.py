@@ -1,13 +1,13 @@
 import datetime
 from sqlalchemy.orm import Session
 from sqlalchemy import func
-from backend.database import TicketTag, Cluster
+from backend.database import TicketTag, Cluster, Ticket
 from backend.config import CLUSTER_THRESHOLD
 
 
 def run_pattern_detection(db: Session, threshold: int = None) -> list:
     """
-    Groups ticket_tags by system, updates cluster counts, flags threshold hits.
+    Groups ticket_tags by (system, topic), updates cluster counts, flags threshold hits.
     Returns list of newly-triggered cluster dicts: [{system, topic, count}]
     Only returns clusters newly crossing the threshold on this call —
     clusters already marked threshold_hit=True are excluded.
@@ -32,10 +32,19 @@ def run_pattern_detection(db: Session, threshold: int = None) -> list:
         cluster = db.query(Cluster).filter_by(system=system, topic=topic).first()
         if cluster:
             cluster.count = cnt
-            cluster.last_seen = datetime.datetime.now(datetime.timezone.utc)
+            cluster.last_seen = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
         else:
             cluster = Cluster(topic=topic, system=system, count=cnt)
             db.add(cluster)
+
+        has_data_issue = db.query(Ticket).join(
+            TicketTag, TicketTag.ticket_id == Ticket.id
+        ).filter(
+            TicketTag.system == system,
+            TicketTag.topic == topic,
+            Ticket.category == "data_issue",
+        ).first() is not None
+        cluster.dict_eligible = (system == "Edify") and has_data_issue
 
         if cnt >= threshold and not cluster.threshold_hit:
             cluster.threshold_hit = True

@@ -57,7 +57,7 @@ export default function App() {
         <Route path="/portal/schema" element={<PortalLayout><SchemaUpload /></PortalLayout>} />
         <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
         <Route path="/admin/dashboard" element={<AdminWrapper page="dashboard" />} />
-        <Route path="/admin/tickets" element={<AdminWrapper page="clusters" />} />
+        <Route path="/admin/clusters" element={<AdminWrapper page="clusters" />} />
         <Route path="/admin/dictionary" element={<AdminWrapper page="dictionary" />} />
         <Route path="/admin/distress" element={<AdminWrapper page="distress" />} />
       </Routes>

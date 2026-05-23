@@ -45,15 +45,19 @@ class Cluster(Base):
     last_seen = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
     threshold_hit = Column(Boolean, default=False)
     agent2_triggered = Column(Boolean, default=False)
+    dict_eligible = Column(Boolean, default=False)
+    it_notified = Column(Boolean, default=False)
 
 
 class DictJob(Base):
     __tablename__ = "dict_jobs"
     id = Column(Integer, primary_key=True, index=True)
     filename = Column(String(200))
-    status = Column(String(20), default="processing")
+    status = Column(String(20), default="queued")
     artifact_path = Column(String(500))
     triggered_by_cluster = Column(String(100))
+    faculty_email = Column(String(200))
+    entry_count = Column(Integer)
     created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
 

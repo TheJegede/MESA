@@ -1,13 +1,22 @@
 import React, { useState, useRef } from 'react'
 import { uploadSchema } from '../api/mesa'
 
+function isInstitutionalEmail(email) {
+  return email.trim().length > 0 && email.includes('@')
+}
+
 export default function SchemaUpload() {
   const [file, setFile] = useState(null)
+  const [email, setEmail] = useState('')
+  const [emailTouched, setEmailTouched] = useState(false)
   const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState(null)
+  const [submitted, setSubmitted] = useState(null)   // {job_id, message}
   const [ferpaData, setFerpaData] = useState(null)
   const [error, setError] = useState(null)
   const inputRef = useRef()
+
+  const emailValid = isInstitutionalEmail(email)
+  const emailError = emailTouched && email.length > 0 && !emailValid
 
   const handleFile = (f) => {
     if (!f) return
@@ -15,30 +24,34 @@ export default function SchemaUpload() {
     if (!['csv', 'json'].includes(ext)) { setError('Only .csv and .json files are supported.'); return }
     setFile(f)
     setError(null)
-    setResult(null)
+    setSubmitted(null)
     setFerpaData(null)
   }
 
   const handleDrop = (e) => { e.preventDefault(); handleFile(e.dataTransfer.files[0]) }
 
   const handleUpload = async (confirmed = false) => {
-    if (!file) return
+    if (!file || !emailValid) return
     setLoading(true)
     setError(null)
     try {
-      const data = await uploadSchema(file, confirmed)
+      const data = await uploadSchema(file, confirmed, '', email)
       if (data.ferpa_flag && !confirmed) {
         setFerpaData(data)
+      } else if (data.detail) {
+        setError(data.detail)
       } else {
-        setResult(data)
+        setSubmitted(data)
         setFerpaData(null)
       }
-    } catch (e) {
+    } catch {
       setError('Upload failed. Is the backend running?')
     } finally {
       setLoading(false)
     }
   }
+
+  const canSubmit = file && emailValid && !loading && !submitted
 
   return (
     <div style={{ maxWidth: 720, margin: '40px auto', padding: '0 24px' }}>
@@ -50,6 +63,42 @@ export default function SchemaUpload() {
         <span><strong>Local Inference Active</strong> — Schema data stays on-device. No data sent to external APIs.</span>
       </div>
 
+      {/* Email field */}
+      <div style={{ marginBottom: 20 }}>
+        <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#21314D', marginBottom: 6, fontFamily: 'Montserrat' }}>
+          Institutional Email
+        </label>
+        <input
+          type="email"
+          value={email}
+          onChange={e => setEmail(e.target.value)}
+          onBlur={() => setEmailTouched(true)}
+          placeholder="you@mines.edu"
+          style={{
+            width: '100%',
+            padding: '10px 14px',
+            fontSize: 13,
+            border: `1px solid ${emailError ? '#CC4628' : '#CFDCE9'}`,
+            borderRadius: 6,
+            outline: 'none',
+            fontFamily: 'inherit',
+            color: '#21314D',
+            boxSizing: 'border-box',
+          }}
+        />
+        {emailError && (
+          <div style={{ fontSize: 12, color: '#CC4628', marginTop: 4 }}>
+            Enter a valid email address.
+          </div>
+        )}
+        {!emailError && emailValid && (
+          <div style={{ fontSize: 12, color: '#4A8F3F', marginTop: 4 }}>
+            Completed dictionary will be emailed here.
+          </div>
+        )}
+      </div>
+
+      {/* Drop zone */}
       <div
         onDragOver={e => e.preventDefault()}
         onDrop={handleDrop}
@@ -71,7 +120,7 @@ export default function SchemaUpload() {
         )}
       </div>
 
-      {file && !loading && !result && (
+      {canSubmit && (
         <button
           onClick={() => handleUpload(false)}
           style={{ marginTop: 16, background: '#09396C', color: '#fff', fontFamily: 'Montserrat', fontWeight: 700, fontSize: 14, padding: '11px 24px', borderRadius: 6, border: 'none', cursor: 'pointer' }}
@@ -80,9 +129,15 @@ export default function SchemaUpload() {
         </button>
       )}
 
-      {loading && <div style={{ marginTop: 16, fontSize: 13, color: '#81848A' }}>Generating dictionary… (this may take 1-3 minutes)</div>}
+      {loading && (
+        <div style={{ marginTop: 16, fontSize: 13, color: '#81848A' }}>Submitting…</div>
+      )}
 
-      {error && <div style={{ marginTop: 16, padding: '12px 16px', background: 'rgba(204,70,40,0.1)', border: '1px solid rgba(204,70,40,0.3)', borderRadius: 6, color: '#CC4628', fontSize: 13 }}>{error}</div>}
+      {error && (
+        <div style={{ marginTop: 16, padding: '12px 16px', background: 'rgba(204,70,40,0.1)', border: '1px solid rgba(204,70,40,0.3)', borderRadius: 6, color: '#CC4628', fontSize: 13 }}>
+          {error}
+        </div>
+      )}
 
       {ferpaData && (
         <div style={{ marginTop: 20, padding: '20px 24px', background: 'rgba(241,185,26,0.1)', border: '2px solid #F1B91A', borderRadius: 8 }}>
@@ -102,10 +157,17 @@ export default function SchemaUpload() {
         </div>
       )}
 
-      {result && (
-        <div style={{ marginTop: 24, padding: '20px 24px', background: '#fff', border: '1px solid #CFDCE9', borderRadius: 8 }}>
-          <div style={{ fontFamily: 'Montserrat', fontWeight: 700, fontSize: 16, color: '#21314D', marginBottom: 6 }}>✓ Dictionary Generated</div>
-          <p style={{ fontSize: 13, color: '#75757D' }}>{result.entry_count} fields documented. Artifact sent to advisor email.</p>
+      {submitted && (
+        <div style={{ marginTop: 24, padding: '20px 24px', background: '#fff', border: '1px solid #80C342', borderRadius: 8 }}>
+          <div style={{ fontFamily: 'Montserrat', fontWeight: 700, fontSize: 16, color: '#21314D', marginBottom: 6 }}>
+            ✓ Submission received
+          </div>
+          <p style={{ fontSize: 13, color: '#75757D', marginBottom: 4 }}>
+            {submitted.message}
+          </p>
+          <p style={{ fontSize: 12, color: '#81848A' }}>
+            Job #{submitted.job_id} · A confirmation has been sent to <strong>{email}</strong>
+          </p>
         </div>
       )}
     </div>

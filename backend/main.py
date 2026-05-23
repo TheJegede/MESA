@@ -1,14 +1,16 @@
+import csv
 import os
 import json
+import uuid
 import datetime
 import shutil
 import socket
-import tempfile
 from contextlib import asynccontextmanager
 from typing import Optional
 
 import ollama
-from fastapi import FastAPI, Depends, HTTPException, UploadFile, File
+from fastapi import BackgroundTasks, FastAPI, Depends, Form, HTTPException, UploadFile, File
+from fastapi.responses import FileResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
@@ -17,12 +19,97 @@ from backend.database import (
     get_db, init_db, seed_tickets_if_empty, SessionLocal,
     Ticket, TicketTag, Cluster, DictJob, DistressFlag, EmailLog,
 )
-from backend.config import CLUSTER_THRESHOLD, GMAIL_USER, ADVISOR_EMAIL
+from backend.config import CLUSTER_THRESHOLD, GMAIL_USER, ADVISOR_EMAIL, UPLOADS_DIR, IT_TEAM_EMAIL
 from backend.agents.agent1_helpdesk import classify_ticket
-from backend.agents.agent2_dictionary import generate_dictionary, generate_dictionary_confirmed
+from backend.agents.agent2_dictionary import generate_dictionary_confirmed, scan_schema_for_ferpa
 from backend.services.email_service import send_email, send_with_attachment
 from backend.services.pattern_detector import run_pattern_detection
 from backend.services.scheduler import start_scheduler, stop_scheduler, scheduler
+
+INSTITUTIONAL_DOMAIN = "mines.edu"
+
+
+def _validate_institutional_email(email: str) -> bool:
+    return email.strip().lower().endswith(f"@{INSTITUTIONAL_DOMAIN}")
+
+
+def _process_dict_job(job_id: int, file_path: str, faculty_email: str, filename: str):
+    db = SessionLocal()
+    job = None
+    try:
+        job = db.query(DictJob).filter_by(id=job_id).first()
+        if job:
+            job.status = "processing"
+            db.commit()
+
+        result = generate_dictionary_confirmed(file_path)
+
+        if result.get("error"):
+            if job:
+                job.status = "failed"
+                db.commit()
+            send_email(
+                to_addr=faculty_email,
+                subject=f"MESA: Dictionary generation failed — {filename}",
+                body=(
+                    f"Your data dictionary request for '{filename}' could not be completed.\n\n"
+                    f"Error: {result['error']}\n\n"
+                    f"Please retry or contact IT support."
+                ),
+            )
+            return
+
+        if job:
+            job.status = "completed"
+            job.artifact_path = result["artifact_path"]
+            job.entry_count = result["entry_count"]
+            db.commit()
+
+        email_result = send_with_attachment(
+            to_addr=faculty_email,
+            subject=f"MESA: Data dictionary ready — {filename}",
+            body=(
+                f"Your data dictionary for '{filename}' has been generated.\n\n"
+                f"{result['entry_count']} fields documented.\n\n"
+                f"The attached CSV contains field names, data types, descriptions, source systems, "
+                f"sensitivity classifications, and example values.\n\n"
+                f"Generated using local inference only. No schema data was sent to external APIs."
+            ),
+            filepath=result["artifact_path"],
+        )
+        log = EmailLog(
+            to_addr=faculty_email,
+            subject=f"Dict delivery: {filename}",
+            success=email_result["success"],
+            error_msg=email_result.get("error"),
+        )
+        db.add(log)
+        db.commit()
+
+    except Exception as e:
+        try:
+            if job:
+                job.status = "failed"
+                db.commit()
+            err_result = send_email(
+                to_addr=faculty_email,
+                subject=f"MESA: Dictionary generation failed — {filename}",
+                body=f"Your data dictionary request for '{filename}' could not be completed. Please retry or contact IT support.",
+            )
+            err_log = EmailLog(
+                to_addr=faculty_email,
+                subject=f"Dict failure: {filename}",
+                success=err_result["success"],
+                error_msg=err_result.get("error"),
+            )
+            db.add(err_log)
+            db.commit()
+        except Exception:
+            pass
+    finally:
+        db.close()
+        if os.path.exists(file_path):
+            os.unlink(file_path)
 
 
 @asynccontextmanager
@@ -42,8 +129,8 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="MESA API", lifespan=lifespan)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
-    allow_credentials=True,
+    allow_origins=["*"],
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -141,6 +228,8 @@ def list_clusters(db: Session = Depends(get_db)):
             "last_seen": c.last_seen.isoformat() if c.last_seen else None,
             "threshold_hit": c.threshold_hit,
             "agent2_triggered": c.agent2_triggered,
+            "dict_eligible": c.dict_eligible,
+            "it_notified": c.it_notified,
         }
         for c in clusters
     ]
@@ -158,14 +247,49 @@ def trigger_agent2(cluster_id: int, db: Session = Depends(get_db)):
     return {"status": "triggered", "cluster": cluster.system}
 
 
+# ── POST /clusters/notify-it ─────────────────────────────────────────────────
+
+@app.post("/clusters/notify-it")
+def notify_it_team(cluster_id: int, db: Session = Depends(get_db)):
+    cluster = db.query(Cluster).filter_by(id=cluster_id).first()
+    if not cluster:
+        raise HTTPException(status_code=404, detail="Cluster not found")
+    if not IT_TEAM_EMAIL:
+        raise HTTPException(status_code=503, detail="IT_TEAM_EMAIL not configured")
+    result = send_email(
+        to_addr=IT_TEAM_EMAIL,
+        subject=f"MESA Alert: {cluster.system} cluster threshold reached — {cluster.topic}",
+        body=(
+            f"A support ticket cluster has exceeded the alert threshold and requires IT attention.\n\n"
+            f"System: {cluster.system}\n"
+            f"Topic: {cluster.topic}\n"
+            f"Ticket count: {cluster.count} (threshold: {CLUSTER_THRESHOLD})\n\n"
+            f"This pattern was detected automatically by MESA. "
+            f"Please review and assign to the appropriate team.\n\n"
+            f"View in MESA admin: http://localhost:5173/admin/clusters"
+        ),
+    )
+    log = EmailLog(
+        to_addr=IT_TEAM_EMAIL,
+        subject=f"IT alert: {cluster.system}/{cluster.topic}",
+        success=result["success"],
+        error_msg=result.get("error"),
+    )
+    db.add(log)
+    cluster.it_notified = True
+    db.commit()
+    return {"status": "notified", "success": result["success"]}
+
+
 # ── GET /dashboard-stats ──────────────────────────────────────────────────────
 
 @app.get("/dashboard-stats")
 def dashboard_stats(db: Session = Depends(get_db)):
     # SQLite stores datetimes as naive UTC strings — use naive UTC for comparisons
+    # Rolling 24h window avoids UTC-midnight cutoff mismatching user's local timezone
     now_utc = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-    today_start = now_utc.replace(hour=0, minute=0, second=0, microsecond=0)
-    tickets_today = db.query(Ticket).filter(Ticket.created_at >= today_start).count()
+    last_24h = now_utc - datetime.timedelta(hours=24)
+    tickets_today = db.query(Ticket).filter(Ticket.created_at >= last_24h).count()
     total = db.query(Ticket).count() or 1
     auto_res = db.query(Ticket).filter_by(auto_resolved=True).count()
     week_ago = now_utc - datetime.timedelta(days=7)
@@ -190,70 +314,68 @@ def dashboard_stats(db: Session = Depends(get_db)):
 
 @app.post("/generate-dictionary")
 def generate_dict(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
+    faculty_email: str = Form(...),
     confirmed: bool = False,
     triggered_by_cluster: str = "",
     db: Session = Depends(get_db),
 ):
+    if not faculty_email or "@" not in faculty_email:
+        raise HTTPException(status_code=400, detail="A valid email address is required.")
+
     allowed = {".csv", ".json"}
     ext = os.path.splitext(file.filename)[1].lower()
     if ext not in allowed:
         raise HTTPException(status_code=400, detail=f"File type {ext} not supported. Use .csv or .json")
 
-    with tempfile.NamedTemporaryFile(delete=False, suffix=ext) as tmp:
-        shutil.copyfileobj(file.file, tmp)
-        tmp_path = tmp.name
+    os.makedirs(UPLOADS_DIR, exist_ok=True)
+    upload_path = os.path.join(UPLOADS_DIR, f"{uuid.uuid4().hex}{ext}")
+    with open(upload_path, "wb") as f_out:
+        shutil.copyfileobj(file.file, f_out)
 
-    job = DictJob(filename=file.filename, status="processing", triggered_by_cluster=triggered_by_cluster)
+    if not confirmed:
+        scan = scan_schema_for_ferpa(upload_path)
+        if scan["ferpa_flag"]:
+            os.unlink(upload_path)
+            return {"ferpa_flag": True, "sensitive_fields": scan["sensitive_fields"]}
+
+    job = DictJob(
+        filename=file.filename,
+        status="queued",
+        triggered_by_cluster=triggered_by_cluster,
+        faculty_email=faculty_email,
+    )
     db.add(job)
     db.commit()
 
-    try:
-        if confirmed:
-            result = generate_dictionary_confirmed(tmp_path)
-        else:
-            result = generate_dictionary(tmp_path)
+    conf_result = send_email(
+        to_addr=faculty_email,
+        subject=f"MESA: Schema received — {file.filename}",
+        body=(
+            f"Your schema file '{file.filename}' has been received and is queued for processing.\n\n"
+            f"The data dictionary will be generated using local inference only. "
+            f"No schema data will be sent to external APIs.\n\n"
+            f"You will receive the completed CSV by email within 5-10 minutes.\n\n"
+            f"Job ID: #{job.id}"
+        ),
+    )
+    conf_log = EmailLog(
+        to_addr=faculty_email,
+        subject=f"Schema receipt: {file.filename}",
+        success=conf_result["success"],
+        error_msg=conf_result.get("error"),
+    )
+    db.add(conf_log)
+    db.commit()
 
-        if result.get("ferpa_flag"):
-            job.status = "ferpa_pending"
-            db.commit()
-            return {"ferpa_flag": True, "sensitive_fields": result["sensitive_fields"], "job_id": job.id}
+    background_tasks.add_task(_process_dict_job, job.id, upload_path, faculty_email, file.filename)
 
-        if result.get("error"):
-            job.status = "failed"
-            db.commit()
-            raise HTTPException(status_code=500, detail=result["error"])
-
-        job.status = "completed"
-        job.artifact_path = result["artifact_path"]
-        db.commit()
-
-        email_result = send_with_attachment(
-            to_addr=ADVISOR_EMAIL,
-            subject=f"MESA: Data dictionary generated for {file.filename}",
-            body=f"Agent 2 has generated a data dictionary for {file.filename}.\n{result['entry_count']} fields documented.",
-            filepath=result["artifact_path"],
-        )
-        log = EmailLog(
-            to_addr=ADVISOR_EMAIL,
-            subject=f"Dict artifact: {file.filename}",
-            success=email_result["success"],
-            error_msg=email_result.get("error"),
-        )
-        db.add(log)
-        db.commit()
-
-    except HTTPException:
-        raise
-    except Exception as e:
-        job.status = "failed"
-        db.commit()
-        raise HTTPException(status_code=500, detail=str(e))
-    finally:
-        if os.path.exists(tmp_path):
-            os.unlink(tmp_path)
-
-    return {"job_id": job.id, "entry_count": result["entry_count"], "artifact_path": result["artifact_path"]}
+    return {
+        "job_id": job.id,
+        "status": "queued",
+        "message": f"Received. Dictionary will be emailed to {faculty_email} within 5-10 minutes.",
+    }
 
 
 # ── GET /dict-jobs ────────────────────────────────────────────────────────────
@@ -268,10 +390,82 @@ def list_dict_jobs(db: Session = Depends(get_db)):
             "status": j.status,
             "artifact_path": j.artifact_path,
             "triggered_by_cluster": j.triggered_by_cluster,
+            "faculty_email": j.faculty_email,
+            "entry_count": j.entry_count,
             "created_at": j.created_at.isoformat() if j.created_at else None,
         }
         for j in jobs
     ]
+
+
+# ── GET /dict-jobs/{id}/entries ──────────────────────────────────────────────
+
+@app.get("/dict-jobs/{job_id}/entries")
+def get_dict_job_entries(job_id: int, db: Session = Depends(get_db)):
+    job = db.query(DictJob).filter_by(id=job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.status != "completed" or not job.artifact_path:
+        raise HTTPException(status_code=400, detail="Artifact not ready")
+    if not os.path.exists(job.artifact_path):
+        raise HTTPException(status_code=404, detail="Artifact file missing from server")
+    entries = []
+    with open(job.artifact_path, encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            entries.append(dict(row))
+    return entries
+
+
+# ── GET /dict-jobs/{id}/download ─────────────────────────────────────────────
+
+@app.get("/dict-jobs/{job_id}/download")
+def download_dict_job(job_id: int, db: Session = Depends(get_db)):
+    job = db.query(DictJob).filter_by(id=job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.status != "completed" or not job.artifact_path:
+        raise HTTPException(status_code=400, detail="Artifact not ready")
+    if not os.path.exists(job.artifact_path):
+        raise HTTPException(status_code=404, detail="Artifact file missing from server")
+    return FileResponse(
+        path=job.artifact_path,
+        media_type="text/csv",
+        filename=os.path.basename(job.artifact_path),
+    )
+
+
+# ── POST /dict-jobs/{id}/resend ───────────────────────────────────────────────
+
+@app.post("/dict-jobs/{job_id}/resend")
+def resend_dict_job(job_id: int, db: Session = Depends(get_db)):
+    job = db.query(DictJob).filter_by(id=job_id).first()
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+    if job.status != "completed" or not job.artifact_path:
+        raise HTTPException(status_code=400, detail="Artifact not ready — cannot resend")
+    if not job.faculty_email:
+        raise HTTPException(status_code=400, detail="No faculty email on record for this job")
+    if not os.path.exists(job.artifact_path):
+        raise HTTPException(status_code=404, detail="Artifact file missing from server")
+    result = send_with_attachment(
+        to_addr=job.faculty_email,
+        subject=f"MESA: Data dictionary (resent) — {job.filename}",
+        body=(
+            f"Your data dictionary for '{job.filename}' has been resent by an administrator.\n\n"
+            f"{job.entry_count or '—'} fields documented.\n\n"
+            f"Generated using local inference only. No schema data was sent to external APIs."
+        ),
+        filepath=job.artifact_path,
+    )
+    log = EmailLog(
+        to_addr=job.faculty_email,
+        subject=f"Dict resend: {job.filename}",
+        success=result["success"],
+        error_msg=result.get("error"),
+    )
+    db.add(log)
+    db.commit()
+    return {"status": "sent", "to": job.faculty_email, "success": result["success"]}
 
 
 # ── GET /distress-flags ───────────────────────────────────────────────────────
@@ -322,7 +516,7 @@ def approve_flag(flag_id: int, db: Session = Depends(get_db)):
     )
     db.add(log)
     flag.status = "approved"
-    flag.reviewed_at = datetime.datetime.now(datetime.timezone.utc)
+    flag.reviewed_at = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
     db.commit()
     return {"status": "approved", "email_sent": result["success"]}
 
@@ -335,9 +529,16 @@ def dismiss_flag(flag_id: int, db: Session = Depends(get_db)):
     if not flag:
         raise HTTPException(status_code=404, detail="Flag not found")
     flag.status = "dismissed"
-    flag.reviewed_at = datetime.datetime.now(datetime.timezone.utc)
+    flag.reviewed_at = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
     db.commit()
     return {"status": "dismissed"}
+
+
+# ── GET /config ───────────────────────────────────────────────────────────────
+
+@app.get("/config")
+def get_config():
+    return {"cluster_threshold": CLUSTER_THRESHOLD}
 
 
 # ── GET /system-health ────────────────────────────────────────────────────────

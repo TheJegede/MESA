@@ -1,24 +1,5 @@
-import React, { useState, useMemo, useEffect } from 'react'
-import { getClusters, getTickets, triggerAgent2 } from '../api/mesa'
-
-const TC_CLUSTERS = [
-  { id: 1, rank: 1, topic: "Data Access & Pipeline Errors",  system: "Edify",    count: 15, max: 15, threshold_hit: true,  agent2_triggered: true  },
-  { id: 2, rank: 2, topic: "Authentication & Login Issues",  system: "Banner",   count: 12, max: 15, threshold_hit: true,  agent2_triggered: false },
-  { id: 3, rank: 3, topic: "LMS Grade Sync Failures",        system: "Canvas",   count: 9,  max: 15, threshold_hit: false, agent2_triggered: false },
-  { id: 4, rank: 4, topic: "Cloud Storage Sync Errors",      system: "OneDrive", count: 8,  max: 15, threshold_hit: false, agent2_triggered: false },
-  { id: 5, rank: 5, topic: "Payroll Data Visibility",        system: "Workday",  count: 6,  max: 15, threshold_hit: false, agent2_triggered: false },
-];
-
-const TC_ALL_TICKETS = [
-  { id: 1, system: "Edify",    category: "Data Issue",      severity: "high",   auto_resolved: false, submitted: "Today 08:12" },
-  { id: 2, system: "Edify",    category: "Access Request",  severity: "high",   auto_resolved: false, submitted: "Today 08:45" },
-  { id: 3, system: "Edify",    category: "Software Error",  severity: "high",   auto_resolved: false, submitted: "Today 09:03" },
-  { id: 4, system: "Banner",   category: "Password Reset",  severity: "low",    auto_resolved: true,  submitted: "Today 09:30" },
-  { id: 5, system: "Canvas",   category: "Software Error",  severity: "medium", auto_resolved: false, submitted: "Today 10:01" },
-  { id: 6, system: "Edify",    category: "Data Issue",      severity: "high",   auto_resolved: false, submitted: "Today 10:22" },
-  { id: 7, system: "OneDrive", category: "Software Error",  severity: "medium", auto_resolved: true,  submitted: "Today 10:45" },
-  { id: 8, system: "Workday",  category: "Data Issue",      severity: "medium", auto_resolved: false, submitted: "Today 11:00" },
-];
+import React, { useState, useMemo, useEffect, useCallback } from 'react'
+import { getClusters, getTickets, triggerAgent2, getConfig, notifyItTeam } from '../api/mesa'
 
 const TC_FILTERS = ["All", "Edify", "Banner", "Canvas", "OneDrive", "Workday"];
 
@@ -68,11 +49,11 @@ function SystemPill({ name, size }) {
 }
 
 function SeverityPill({ s }) {
-  const map = {
+  const map = ({
     high:   { bg: "rgba(204,70,40,0.12)", border: "rgba(204,70,40,0.45)", color: "var(--colorado-red)" },
     medium: { bg: "rgba(241,185,26,0.18)", border: "rgba(241,185,26,0.5)", color: "#7A5B00"              },
     low:    { bg: "rgba(135,158,195,0.22)", border: "rgba(135,158,195,0.5)", color: "var(--blaster-blue)" },
-  }[s];
+  })[s] || { bg: "rgba(135,158,195,0.22)", border: "rgba(135,158,195,0.5)", color: "var(--blaster-blue)" };
   return (
     <span style={{
       background: map.bg, color: map.color, border: `1px solid ${map.border}`,
@@ -83,7 +64,7 @@ function SeverityPill({ s }) {
 }
 
 // ---------- cluster row ----------
-function ClusterTableRow({ c, threshold }) {
+function ClusterTableRow({ c, threshold, onTrigger }) {
   const [hover, setHover] = useState(false);
   const aboveThreshold = c.count >= threshold;
   const barColor = aboveThreshold ? "var(--golden-tech)" : "var(--light-blue)";
@@ -138,11 +119,15 @@ function ClusterTableRow({ c, threshold }) {
       <div>
         {c.agent2_triggered ? (
           <span style={{ color: "#3F7A1A", fontFamily: "Montserrat", fontWeight: 700, fontSize: 12, letterSpacing: "0.04em" }}>
-            Active ✓
+            Agent 2 Active ✓
           </span>
-        ) : c.threshold_hit ? (
+        ) : c.it_notified ? (
+          <span style={{ color: "#3F7A1A", fontFamily: "Montserrat", fontWeight: 700, fontSize: 12, letterSpacing: "0.04em" }}>
+            IT Notified ✓
+          </span>
+        ) : c.dict_eligible ? (
           <button
-            onClick={() => triggerAgent2(c.id).then(() => window.location.reload())}
+            onClick={() => triggerAgent2(c.id).then(onTrigger)}
             style={{
               background: "transparent", color: "var(--dark-blue)",
               border: "1.5px solid var(--golden-tech)",
@@ -150,6 +135,16 @@ function ClusterTableRow({ c, threshold }) {
               padding: "5px 11px", borderRadius: 999,
               cursor: "pointer", letterSpacing: "0.02em",
             }}>▶ Trigger Agent 2</button>
+        ) : c.threshold_hit ? (
+          <button
+            onClick={() => notifyItTeam(c.id).then(onTrigger)}
+            style={{
+              background: "transparent", color: "var(--colorado-red)",
+              border: "1.5px solid var(--colorado-red)",
+              fontFamily: "Montserrat", fontWeight: 700, fontSize: 11.5,
+              padding: "5px 11px", borderRadius: 999,
+              cursor: "pointer", letterSpacing: "0.02em",
+            }}>✉ Notify IT Team</button>
         ) : (
           <span style={{ fontSize: 11, color: "var(--silver)" }}>—</span>
         )}
@@ -222,29 +217,47 @@ function TableHeader({ cols, gridTemplate }) {
 }
 
 function TicketClusters() {
-  const [threshold, setThreshold] = useState(10);
+  const PAGE_SIZE = 20;
+  const [threshold, setThreshold] = useState(5);
   const [activeFilter, setActiveFilter] = useState("All");
-  const [clusters, setClusters] = useState(TC_CLUSTERS);
-  const [tickets, setTickets] = useState(TC_ALL_TICKETS);
+  const [page, setPage] = useState(1);
+  const [clusters, setClusters] = useState(null);
+  const [tickets, setTickets] = useState(null);
+
+  const load = useCallback(async () => {
+    try {
+      const [c, t] = await Promise.all([getClusters(), getTickets()])
+      setClusters(c.map((cl, i) => ({ ...cl, rank: i + 1, max: Math.max(...c.map(x => x.count), 1) })))
+      setTickets(t.map(tk => ({
+        ...tk,
+        system: tk.system_affected || tk.system || "Unknown",
+        submitted: tk.created_at ? new Date(tk.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }) : "—",
+      })))
+    } catch {}
+  }, [])
 
   useEffect(() => {
-    const load = async () => {
-      try {
-        const [c, t] = await Promise.all([getClusters(), getTickets()])
-        if (c.length > 0) setClusters(c.map((cl, i) => ({ ...cl, rank: i + 1, max: Math.max(...c.map(x => x.count)) })))
-        if (t.length > 0) setTickets(t)
-      } catch (e) {}
-    }
+    getConfig().then(cfg => setThreshold(cfg.cluster_threshold)).catch(() => {})
+  }, [])
+
+  useEffect(() => {
     load()
     const id = setInterval(load, 10000)
     return () => clearInterval(id)
-  }, [])
+  }, [load])
 
-  const filtered = useMemo(() => (
-    activeFilter === "All" ? tickets : tickets.filter((t) => t.system === activeFilter)
-  ), [activeFilter, tickets]);
+  const filtered = useMemo(() => {
+    if (!tickets) return null;
+    return activeFilter === "All" ? tickets : tickets.filter((t) => t.system === activeFilter);
+  }, [activeFilter, tickets]);
 
-  const aboveCount = clusters.filter((c) => c.count >= threshold).length;
+  const totalPages = filtered ? Math.ceil(filtered.length / PAGE_SIZE) : 0;
+  const paginated = filtered ? filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE) : [];
+
+  const aboveCount = clusters ? clusters.filter((c) => c.count >= threshold).length : null;
+  const autoResolvedPct = tickets
+    ? Math.round(tickets.filter(t => t.auto_resolved).length / tickets.length * 100)
+    : null;
 
   return (
     <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 22 }}>
@@ -260,9 +273,9 @@ function TicketClusters() {
           </p>
         </div>
         <div className="flex items-center gap-2.5">
-          <StatChip label="Total Tickets"     value="47"                       tone="primary" />
-          <StatChip label="Above Threshold"   value={`${aboveCount} clusters`} tone="warn" />
-          <StatChip label="Auto-Resolved"     value="68%"                      tone="success" />
+          <StatChip label="Total Tickets"   value={tickets ? tickets.length : "—"}                          tone="primary" />
+          <StatChip label="Above Threshold" value={aboveCount !== null ? `${aboveCount} clusters` : "—"}   tone="warn" />
+          <StatChip label="Auto-Resolved"   value={autoResolvedPct !== null ? `${autoResolvedPct}%` : "—"} tone="success" />
         </div>
       </div>
 
@@ -305,7 +318,10 @@ function TicketClusters() {
           gridTemplate="44px 110px 1fr 80px 220px 150px 180px"
         />
         <div>
-          {clusters.map((c) => <ClusterTableRow key={c.id} c={c} threshold={threshold} />)}
+          {clusters === null
+            ? <div style={{ padding: "28px", textAlign: "center", color: "var(--silver)", fontSize: 13 }}>Loading clusters…</div>
+            : clusters.map((c) => <ClusterTableRow key={c.id} c={c} threshold={threshold} onTrigger={load} />)
+          }
         </div>
         <div className="px-5 py-3 flex items-center justify-between" style={{ borderTop: "1px solid var(--border)", background: "var(--surface)" }}>
           <div style={{ fontSize: 11.5, color: "var(--silver)" }}>
@@ -313,7 +329,7 @@ function TicketClusters() {
             Red marker indicates current threshold ({threshold} tickets)
           </div>
           <div style={{ fontSize: 11.5, color: "var(--dark-gray)" }}>
-            APScheduler sweep · next in <span className="mono">0:42</span>
+            APScheduler sweep · 60s interval
           </div>
         </div>
       </section>
@@ -342,7 +358,7 @@ function TicketClusters() {
               return (
                 <button
                   key={f}
-                  onClick={() => setActiveFilter(f)}
+                  onClick={() => { setActiveFilter(f); setPage(1); }}
                   style={{
                     background: active ? "var(--blaster-blue)" : "#fff",
                     color: active ? "#fff" : "var(--dark-blue)",
@@ -362,31 +378,45 @@ function TicketClusters() {
           gridTemplate="80px 120px 1fr 110px 160px 140px"
         />
         <div>
-          {filtered.length === 0 ? (
+          {tickets === null ? (
+            <div style={{ padding: "40px 24px", textAlign: "center", color: "var(--silver)", fontSize: 13 }}>
+              Loading tickets…
+            </div>
+          ) : paginated.length === 0 ? (
             <div style={{ padding: "40px 24px", textAlign: "center", color: "var(--silver)", fontSize: 13 }}>
               No tickets match this filter.
             </div>
           ) : (
-            filtered.map((t, i) => <TicketRow key={t.id} t={t} idx={i} />)
+            paginated.map((t, i) => <TicketRow key={t.id} t={t} idx={i} />)
           )}
         </div>
         <div className="px-5 py-3 flex items-center justify-between" style={{ borderTop: "1px solid var(--border)", background: "var(--surface)" }}>
           <div style={{ fontSize: 11.5, color: "var(--silver)" }}>
-            Showing <span className="mono" style={{ color: "var(--dark-gray)" }}>1–{filtered.length}</span> of <span className="mono" style={{ color: "var(--dark-gray)" }}>47</span> tickets
+            Showing <span className="mono" style={{ color: "var(--dark-gray)" }}>{!filtered || filtered.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered?.length ?? 0)}</span> of <span className="mono" style={{ color: "var(--dark-gray)" }}>{filtered?.length ?? 0}</span> tickets
           </div>
           <div className="flex items-center gap-2">
-            <button style={{
-              background: "#fff", color: "var(--dark-gray)",
-              border: "1px solid var(--border)",
-              fontFamily: "Montserrat", fontWeight: 600, fontSize: 12,
-              padding: "5px 12px", borderRadius: 6, cursor: "pointer",
-            }}>← Prev</button>
-            <button style={{
-              background: "var(--blaster-blue)", color: "#fff",
-              border: "1px solid var(--blaster-blue)",
-              fontFamily: "Montserrat", fontWeight: 600, fontSize: 12,
-              padding: "5px 12px", borderRadius: 6, cursor: "pointer",
-            }}>Next →</button>
+            <button
+              onClick={() => setPage((p) => Math.max(1, p - 1))}
+              disabled={page === 1}
+              style={{
+                background: "#fff", color: page === 1 ? "var(--silver)" : "var(--dark-gray)",
+                border: "1px solid var(--border)",
+                fontFamily: "Montserrat", fontWeight: 600, fontSize: 12,
+                padding: "5px 12px", borderRadius: 6,
+                cursor: page === 1 ? "default" : "pointer",
+                opacity: page === 1 ? 0.5 : 1,
+              }}>← Prev</button>
+            <button
+              onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+              disabled={page >= totalPages}
+              style={{
+                background: page >= totalPages ? "var(--silver)" : "var(--blaster-blue)", color: "#fff",
+                border: `1px solid ${page >= totalPages ? "var(--silver)" : "var(--blaster-blue)"}`,
+                fontFamily: "Montserrat", fontWeight: 600, fontSize: 12,
+                padding: "5px 12px", borderRadius: 6,
+                cursor: page >= totalPages ? "default" : "pointer",
+                opacity: page >= totalPages ? 0.5 : 1,
+              }}>Next →</button>
           </div>
         </div>
       </section>

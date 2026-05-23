@@ -1,50 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { getDistressFlags, approveFlag, dismissFlag } from '../api/mesa'
 
-const INITIAL_FLAGS = [
-  {
-    id: 1,
-    student_id: "STU-0042",
-    risk_score: 87,
-    risk_level: "critical",
-    timestamp: "2026-05-21 08:14 MDT",
-    risk_factors: [
-      "No Canvas logins in 11 days",
-      "3 missing assignments",
-      "Grade dropped to 61%",
-      "Missed advising appointment",
-    ],
-    recommended_action: "Immediate outreach. Schedule check-in within 24 hours.",
-  },
-  {
-    id: 2,
-    student_id: "STU-0019",
-    risk_score: 74,
-    risk_level: "high",
-    timestamp: "2026-05-21 08:14 MDT",
-    risk_factors: [
-      "No Canvas logins in 7 days",
-      "2 missing assignments",
-      "Grade declining 3 weeks",
-    ],
-    recommended_action: "Send check-in email. Offer tutoring and office hours.",
-  },
-  {
-    id: 3,
-    student_id: "STU-0071",
-    risk_score: 71,
-    risk_level: "high",
-    timestamp: "2026-05-21 08:14 MDT",
-    risk_factors: [
-      "1 missing assignment",
-      "Login frequency dropped 70%",
-      "No discussion board activity",
-    ],
-    recommended_action: "Monitor one more day. Prepare outreach email template.",
-  },
-];
-
-const LAST_SCAN = "2026-05-21 08:14:02 MDT";
 
 function levelStyle(level) {
   if (level === "critical") return {
@@ -99,7 +55,7 @@ function FlagCard({ flag, confirmingId, onApprove, onConfirm, onCancel, onDismis
               fontWeight: 700,
               letterSpacing: "0.08em",
             }}>{s.label}</span>
-            <span style={{ fontSize: 11.5, color: "var(--silver)" }}>· flagged {flag.timestamp}</span>
+            <span style={{ fontSize: 11.5, color: "var(--silver)" }}>· flagged {flag.timestamp || (flag.created_at ? new Date(flag.created_at).toLocaleString() : '—')}</span>
           </div>
           <div className="text-right">
             <div className="mono" style={{ fontSize: 30, fontWeight: 600, color: s.score, lineHeight: 1 }}>
@@ -150,8 +106,6 @@ function FlagCard({ flag, confirmingId, onApprove, onConfirm, onCancel, onDismis
 
       <div className="flex items-center justify-between" style={{ padding: "12px 24px", background: "var(--surface)", borderTop: "1px solid var(--border)" }}>
         <div style={{ fontSize: 11.5, color: "var(--silver)" }}>
-          Confidence: <span className="mono" style={{ color: "var(--dark-gray)", fontWeight: 600 }}>{Math.min(99, flag.risk_score + 6)}%</span>
-          <span style={{ margin: "0 10px" }}>·</span>
           Source: <span className="mono">Canvas + Banner</span>
         </div>
         <div className="flex items-center gap-2">
@@ -205,18 +159,19 @@ function FlagCard({ flag, confirmingId, onApprove, onConfirm, onCancel, onDismis
 }
 
 function DistressQueue() {
-  const [flags, setFlags] = useState(INITIAL_FLAGS);
+  const [flags, setFlags] = useState(null);
   const [confirmingId, setConfirmingId] = useState(null);
   const [successMsg, setSuccessMsg] = useState(null);
   const [removingIds, setRemovingIds] = useState([]);
   const [countdown, setCountdown] = useState(60);
+  const [errorMsg, setErrorMsg] = useState(null);
   const successTimer = useRef(null);
 
   useEffect(() => {
     const loadFlags = async () => {
       try {
         const data = await getDistressFlags()
-        setFlags(data.length > 0 ? data : INITIAL_FLAGS)
+        setFlags(data)
       } catch (e) {}
     }
     loadFlags()
@@ -239,16 +194,27 @@ function DistressQueue() {
   const handleConfirm = async (id) => {
     const flag = flags.find((f) => f.id === id);
     setConfirmingId(null);
-    await approveFlag(id).catch(() => {})
+    try {
+      const res = await approveFlag(id);
+      if (res.status !== 'approved') throw new Error(res.detail || 'Approval failed');
+    } catch (e) {
+      setErrorMsg(`Failed to send alert for ${flag.student_id}. Try again.`);
+      setTimeout(() => setErrorMsg(null), 5000);
+      return;
+    }
     removeWithFade(id, () => {
       setSuccessMsg(`Alert sent for ${flag.student_id}`)
       clearTimeout(successTimer.current)
       successTimer.current = setTimeout(() => setSuccessMsg(null), 4000)
     });
   };
-  const handleDismiss = (id) => {
+  const handleDismiss = async (id) => {
     if (confirmingId === id) setConfirmingId(null);
-    dismissFlag(id).catch(() => {})
+    try {
+      await dismissFlag(id);
+    } catch {
+      return;
+    }
     removeWithFade(id);
   };
 
@@ -283,7 +249,7 @@ function DistressQueue() {
             Last Scan
           </div>
           <div className="mono" style={{ fontSize: 13, color: "var(--dark-blue)", fontWeight: 500, marginTop: 4 }}>
-            {LAST_SCAN}
+            {new Date().toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false })}
           </div>
           <div className="flex items-center justify-end gap-2 mt-2">
             <span className="pulse-dot pulse-blue"></span>
@@ -330,8 +296,31 @@ function DistressQueue() {
         </div>
       )}
 
+      {errorMsg && (
+        <div style={{
+          background: "rgba(204,70,40,0.12)",
+          color: "var(--colorado-red)",
+          padding: "11px 16px",
+          borderRadius: 6,
+          fontSize: 13,
+          fontWeight: 600,
+          border: "1px solid rgba(204,70,40,0.35)",
+        }} className="fade-in">
+          ✕ {errorMsg}
+        </div>
+      )}
+
       {/* Cards or empty state */}
-      {flags.length === 0 ? (
+      {flags === null ? (
+        <div className="bg-white" style={{
+          border: "1px solid var(--border)",
+          borderRadius: 8,
+          padding: "60px 24px",
+          textAlign: "center",
+          color: "var(--silver)",
+          fontSize: 13,
+        }}>Loading distress flags…</div>
+      ) : flags.length === 0 ? (
         <div className="bg-white" style={{
           border: "1px solid var(--border)",
           borderRadius: 8,

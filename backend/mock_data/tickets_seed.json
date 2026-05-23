@@ -6,7 +6,7 @@
     "severity": "high",
     "auto_resolved": false,
     "resolution": null,
-    "topic": "Data Access & Pipeline Errors",
+    "topic": "Data Pipeline Failure",
     "error_type": "connection_refused"
   },
   {
@@ -16,7 +16,7 @@
     "severity": "high",
     "auto_resolved": false,
     "resolution": null,
-    "topic": "Data Access & Pipeline Errors",
+    "topic": "Data Pipeline Failure",
     "error_type": "tns_resolution_failure"
   },
   {
@@ -26,7 +26,7 @@
     "severity": "medium",
     "auto_resolved": false,
     "resolution": null,
-    "topic": "Data Access & Pipeline Errors",
+    "topic": "Data Pipeline Failure",
     "error_type": "query_timeout"
   },
   {
@@ -36,7 +36,7 @@
     "severity": "high",
     "auto_resolved": false,
     "resolution": null,
-    "topic": "Data Access & Pipeline Errors",
+    "topic": "Data Pipeline Failure",
     "error_type": "stale_data_pipeline"
   },
   {
@@ -46,7 +46,7 @@
     "severity": "medium",
     "auto_resolved": false,
     "resolution": null,
-    "topic": "Data Access & Pipeline Errors",
+    "topic": "Data Pipeline Failure",
     "error_type": "insufficient_privileges"
   },
   {
@@ -56,7 +56,7 @@
     "severity": "high",
     "auto_resolved": false,
     "resolution": null,
-    "topic": "Data Access & Pipeline Errors",
+    "topic": "Data Pipeline Failure",
     "error_type": "pipeline_partial_failure"
   },
   {
@@ -66,7 +66,7 @@
     "severity": "medium",
     "auto_resolved": true,
     "resolution": "Increased JVM heap allocation in Edify reporting server config. Export limit temporarily raised to 50k rows. User confirmed resolved.",
-    "topic": "Data Access & Pipeline Errors",
+    "topic": "Data Pipeline Failure",
     "error_type": "export_heap_error"
   },
   {
@@ -76,7 +76,7 @@
     "severity": "medium",
     "auto_resolved": true,
     "resolution": "Password reset manually by IT admin. User confirmed login successful. Self-service portal link bug filed as separate ticket.",
-    "topic": "Data Access & Pipeline Errors",
+    "topic": "Data Pipeline Failure",
     "error_type": "password_reset_failure"
   },
   {
@@ -86,7 +86,7 @@
     "severity": "low",
     "auto_resolved": true,
     "resolution": "Installed JRE 8 via SCCM software center. Edify client launched successfully after install. Documented for future imaging checklist.",
-    "topic": "Data Access & Pipeline Errors",
+    "topic": "Data Pipeline Failure",
     "error_type": "missing_java_runtime"
   },
   {
@@ -96,7 +96,7 @@
     "severity": "high",
     "auto_resolved": false,
     "resolution": null,
-    "topic": "Data Access & Pipeline Errors",
+    "topic": "Data Pipeline Failure",
     "error_type": "null_values_post_rollover"
   },
   {
@@ -106,7 +106,7 @@
     "severity": "low",
     "auto_resolved": true,
     "resolution": "Identified permission regression in Edify 4.2 update. Re-applied REPORT_SCHEDULER role to affected user accounts. Issue confirmed resolved.",
-    "topic": "Data Access & Pipeline Errors",
+    "topic": "Data Pipeline Failure",
     "error_type": "permission_regression"
   },
   {
@@ -116,7 +116,7 @@
     "severity": "high",
     "auto_resolved": false,
     "resolution": null,
-    "topic": "Data Access & Pipeline Errors",
+    "topic": "Data Pipeline Failure",
     "error_type": "duplicate_rows_join"
   },
   {
@@ -126,7 +126,7 @@
     "severity": "medium",
     "auto_resolved": false,
     "resolution": null,
-    "topic": "Data Access & Pipeline Errors",
+    "topic": "Data Pipeline Failure",
     "error_type": "vpn_connectivity_drop"
   },
   {
@@ -136,7 +136,7 @@
     "severity": "medium",
     "auto_resolved": true,
     "resolution": "Updated SSL certificate reference in Edify export configuration. Re-ran scheduled job manually — completed successfully.",
-    "topic": "Data Access & Pipeline Errors",
+    "topic": "Data Pipeline Failure",
     "error_type": "ssl_certificate_mismatch"
   },
   {
@@ -146,7 +146,7 @@
     "severity": "high",
     "auto_resolved": false,
     "resolution": null,
-    "topic": "Data Access & Pipeline Errors",
+    "topic": "Data Pipeline Failure",
     "error_type": "datasource_unavailable"
   },
   {
@@ -156,7 +156,7 @@
     "severity": "high",
     "auto_resolved": false,
     "resolution": null,
-    "topic": "Authentication & Login Issues",
+    "topic": "Login Authentication",
     "error_type": "saml_assertion_failure"
   },
   {
@@ -166,7 +166,7 @@
     "severity": "medium",
     "auto_resolved": true,
     "resolution": "Unlocked Banner account. Confirmed MFA misconfiguration causing false failed-attempt counts. Escalated MFA bug to Banner admin team.",
-    "topic": "Authentication & Login Issues",
+    "topic": "Login Authentication",
     "error_type": "account_lockout_mfa_bug"
   },
   {
@@ -176,7 +176,7 @@
     "severity": "medium",
     "auto_resolved": false,
     "resolution": null,
-    "topic": "Authentication & Login Issues",
+    "topic": "Login Authentication",
     "error_type": "role_migration_gap"
   },
   {
@@ -186,7 +186,7 @@
     "severity": "high",
     "auto_resolved": false,
     "resolution": null,
-    "topic": "Authentication & Login Issues",
+    "topic": "Login Authentication",
     "error_type": "provisioning_incomplete"
   },
   {
@@ -196,7 +196,7 @@
     "severity": "low",
     "auto_resolved": true,
     "resolution": "Session timeout corrected in Banner XE application server config. Updated from 15 to 60 minutes. User confirmed resolved.",
-    "topic": "Authentication & Login Issues",
+    "topic": "Login Authentication",
     "error_type": "session_timeout_misconfiguration"
   },
   {
@@ -206,7 +206,7 @@
     "severity": "medium",
     "auto_resolved": false,
     "resolution": null,
-    "topic": "Authentication & Login Issues",
+    "topic": "Login Authentication",
     "error_type": "mfa_sms_delivery_failure"
   },
   {
@@ -216,7 +216,7 @@
     "severity": "medium",
     "auto_resolved": true,
     "resolution": "Extended password reset token TTL from 10 to 60 minutes. Email delivery lag traced to spam filter delay — added Banner sender to allowlist.",
-    "topic": "Authentication & Login Issues",
+    "topic": "Login Authentication",
     "error_type": "reset_token_expiry"
   },
   {
@@ -226,7 +226,7 @@
     "severity": "high",
     "auto_resolved": false,
     "resolution": null,
-    "topic": "Authentication & Login Issues",
+    "topic": "Login Authentication",
     "error_type": "reactivation_workflow_gap"
   },
   {
@@ -236,7 +236,7 @@
     "severity": "high",
     "auto_resolved": false,
     "resolution": null,
-    "topic": "Authentication & Login Issues",
+    "topic": "Login Authentication",
     "error_type": "shared_account_rotation_block"
   },
   {
@@ -246,7 +246,7 @@
     "severity": "low",
     "auto_resolved": false,
     "resolution": null,
-    "topic": "Authentication & Login Issues",
+    "topic": "Login Authentication",
     "error_type": "off_campus_latency"
   },
   {
@@ -256,7 +256,7 @@
     "severity": "medium",
     "auto_resolved": true,
     "resolution": "Identified corrupted role-permission record for specific student. Cleared and rebuilt record. Advisor confirmed normal access restored.",
-    "topic": "Authentication & Login Issues",
+    "topic": "Login Authentication",
     "error_type": "corrupted_permission_record"
   },
   {
@@ -266,7 +266,7 @@
     "severity": "medium",
     "auto_resolved": false,
     "resolution": null,
-    "topic": "Authentication & Login Issues",
+    "topic": "Login Authentication",
     "error_type": "email_domain_mismatch"
   },
   {
@@ -276,7 +276,7 @@
     "severity": "high",
     "auto_resolved": false,
     "resolution": null,
-    "topic": "LMS Grade Sync Failures",
+    "topic": "Grade Sync Failure",
     "error_type": "gradebook_sync_failure"
   },
   {
@@ -286,7 +286,7 @@
     "severity": "high",
     "auto_resolved": false,
     "resolution": null,
-    "topic": "LMS Grade Sync Failures",
+    "topic": "Grade Sync Failure",
     "error_type": "integration_token_expired"
   },
   {
@@ -296,7 +296,7 @@
     "severity": "high",
     "auto_resolved": false,
     "resolution": null,
-    "topic": "LMS Grade Sync Failures",
+    "topic": "Grade Sync Failure",
     "error_type": "submission_not_recorded"
   },
   {
@@ -306,7 +306,7 @@
     "severity": "high",
     "auto_resolved": false,
     "resolution": null,
-    "topic": "LMS Grade Sync Failures",
+    "topic": "Grade Sync Failure",
     "error_type": "grade_passback_duplication"
   },
   {
@@ -316,7 +316,7 @@
     "severity": "medium",
     "auto_resolved": true,
     "resolution": "Corrected assignment group weight configuration. Extra credit category set to 0% weight as intended. Gradebook recalculated correctly.",
-    "topic": "LMS Grade Sync Failures",
+    "topic": "Grade Sync Failure",
     "error_type": "weight_calculation_error"
   },
   {
@@ -326,7 +326,7 @@
     "severity": "high",
     "auto_resolved": false,
     "resolution": null,
-    "topic": "LMS Grade Sync Failures",
+    "topic": "Grade Sync Failure",
     "error_type": "grade_code_mapping_error"
   },
   {
@@ -336,7 +336,7 @@
     "severity": "medium",
     "auto_resolved": true,
     "resolution": "LTI tool cache cleared and PDF preview service restarted. SpeedGrader loading confirmed normal. Canvas vendor notified of regression.",
-    "topic": "LMS Grade Sync Failures",
+    "topic": "Grade Sync Failure",
     "error_type": "speedgrader_blank_page"
   },
   {
@@ -346,7 +346,7 @@
     "severity": "medium",
     "auto_resolved": false,
     "resolution": null,
-    "topic": "LMS Grade Sync Failures",
+    "topic": "Grade Sync Failure",
     "error_type": "transfer_credit_sync_gap"
   },
   {
@@ -356,7 +356,7 @@
     "severity": "medium",
     "auto_resolved": false,
     "resolution": null,
-    "topic": "LMS Grade Sync Failures",
+    "topic": "Grade Sync Failure",
     "error_type": "duplicate_student_id"
   },
   {
@@ -366,7 +366,7 @@
     "severity": "medium",
     "auto_resolved": false,
     "resolution": null,
-    "topic": "Cloud Storage Sync Errors",
+    "topic": "Storage Sync Error",
     "error_type": "sync_client_stuck"
   },
   {
@@ -376,7 +376,7 @@
     "severity": "medium",
     "auto_resolved": true,
     "resolution": "Disabled legacy lock files on shared folder. Cleared local cache and resynced. Co-authoring sessions confirmed working. Advised on concurrent edit best practices.",
-    "topic": "Cloud Storage Sync Errors",
+    "topic": "Storage Sync Error",
     "error_type": "version_conflict_coauthoring"
   },
   {
@@ -386,7 +386,7 @@
     "severity": "high",
     "auto_resolved": false,
     "resolution": null,
-    "topic": "Cloud Storage Sync Errors",
+    "topic": "Storage Sync Error",
     "error_type": "quota_reduction_blocked"
   },
   {
@@ -396,7 +396,7 @@
     "severity": "high",
     "auto_resolved": false,
     "resolution": null,
-    "topic": "Cloud Storage Sync Errors",
+    "topic": "Storage Sync Error",
     "error_type": "library_not_found_post_migration"
   },
   {
@@ -406,7 +406,7 @@
     "severity": "low",
     "auto_resolved": true,
     "resolution": "Documented OneDrive special character restrictions for affected team. Provided rename script using allowed characters. Team confirmed working.",
-    "topic": "Cloud Storage Sync Errors",
+    "topic": "Storage Sync Error",
     "error_type": "filename_character_encoding"
   },
   {
@@ -416,7 +416,7 @@
     "severity": "medium",
     "auto_resolved": false,
     "resolution": null,
-    "topic": "Cloud Storage Sync Errors",
+    "topic": "Storage Sync Error",
     "error_type": "external_sharing_blocked"
   },
   {
@@ -426,7 +426,7 @@
     "severity": "medium",
     "auto_resolved": true,
     "resolution": "Re-enabled Known Folder Move via GPO. OneDrive desktop sync confirmed active. User verified recent files now syncing correctly.",
-    "topic": "Cloud Storage Sync Errors",
+    "topic": "Storage Sync Error",
     "error_type": "known_folder_move_disabled"
   },
   {
@@ -436,7 +436,7 @@
     "severity": "low",
     "auto_resolved": false,
     "resolution": null,
-    "topic": "Cloud Storage Sync Errors",
+    "topic": "Storage Sync Error",
     "error_type": "sync_throttling"
   },
   {
@@ -446,7 +446,7 @@
     "severity": "medium",
     "auto_resolved": false,
     "resolution": null,
-    "topic": "Payroll Data Visibility",
+    "topic": "Payroll Data Issue",
     "error_type": "pay_stub_not_visible"
   },
   {
@@ -456,7 +456,7 @@
     "severity": "high",
     "auto_resolved": false,
     "resolution": null,
-    "topic": "Payroll Data Visibility",
+    "topic": "Payroll Data Issue",
     "error_type": "job_title_data_error"
   },
   {
@@ -466,7 +466,7 @@
     "severity": "high",
     "auto_resolved": false,
     "resolution": null,
-    "topic": "Payroll Data Visibility",
+    "topic": "Payroll Data Issue",
     "error_type": "sso_login_loop"
   },
   {
@@ -476,7 +476,7 @@
     "severity": "high",
     "auto_resolved": false,
     "resolution": null,
-    "topic": "Payroll Data Visibility",
+    "topic": "Payroll Data Issue",
     "error_type": "stipend_integration_gap"
   },
   {
@@ -486,7 +486,7 @@
     "severity": "high",
     "auto_resolved": false,
     "resolution": null,
-    "topic": "Payroll Data Visibility",
+    "topic": "Payroll Data Issue",
     "error_type": "time_rounding_error"
   },
   {
@@ -496,7 +496,7 @@
     "severity": "medium",
     "auto_resolved": true,
     "resolution": "Identified permissions gap in Workday self-service role for this employee class. Re-applied correct role. User confirmed W-2 document now accessible.",
-    "topic": "Payroll Data Visibility",
+    "topic": "Payroll Data Issue",
     "error_type": "tax_document_access_gap"
   }
 ]

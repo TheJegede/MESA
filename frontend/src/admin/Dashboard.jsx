@@ -1,33 +1,6 @@
 import React, { useState, useEffect } from 'react'
-import { getDashboardStats, getClusters, getSystemHealth } from '../api/mesa'
+import { getDashboardStats, getClusters, getSystemHealth, getDictJobs, getConfig, triggerAgent2 } from '../api/mesa'
 
-const KPIS = [
-  { label: "Tickets Today", value: "47", trend: "↑ 12%", tone: "up", sub: "vs. yesterday" },
-  { label: "Auto-Resolution Rate", value: "68%", trend: "↑ 4 pts", tone: "up", sub: "Agent 1 handled" },
-  { label: "Dict Jobs This Week", value: "3", trend: "Stable", tone: "neutral", sub: "0 failed" },
-  { label: "Students Flagged", value: "4", trend: "Pending review", tone: "warn", sub: "awaiting approval" },
-];
-
-const CLUSTERS = [
-  { system: "Edify",    topic: "Course enrollment errors",        count: 15, status: "triggered" },
-  { system: "Banner",   topic: "Password reset / SSO failures",   count: 12, status: "threshold" },
-  { system: "Canvas",   topic: "Gradebook sync issues",           count: 9,  status: "below" },
-  { system: "OneDrive", topic: "Shared folder permissions",       count: 8,  status: "below" },
-  { system: "Workday",  topic: "Timesheet submission failures",   count: 6,  status: "below" },
-];
-
-const JOBS = [
-  { file: "edify_enrollment_schema.csv",  state: "completed",   meta: "24 entries · 2m ago" },
-  { file: "banner_student_schema.csv",    state: "completed",   meta: "31 entries · 18m ago" },
-  { file: "workday_hr_schema.json",       state: "processing",  meta: "extracting columns…" },
-];
-
-const HEALTH = [
-  { name: "Ollama (Llama 3.1:8b)",  latency: "180ms",     status: "online",  detail: "local inference" },
-  { name: "Gemini Flash",            latency: "340ms",     status: "online",  detail: "rate: 12 / 60s" },
-  { name: "Gmail SMTP",              latency: "—",         status: "online",  detail: "outbound only" },
-  { name: "APScheduler",             latency: "next: 60s", status: "running", detail: "distress sweep" },
-];
 
 function KpiCard({ k }) {
   const trendStyles = {
@@ -120,13 +93,23 @@ function ClusterRow({ c, max, threshold }) {
             fontFamily: "Montserrat", letterSpacing: "0.02em",
           }}>🟠 Agent 2 Active</span>
         )}
-        {!triggered && atThreshold && (
-          <button style={{
-            background: "transparent", color: "var(--dark-blue)",
-            border: "1.5px solid var(--golden-tech)",
-            fontSize: 11.5, fontWeight: 700, padding: "5px 11px", borderRadius: 999,
-            fontFamily: "Montserrat", cursor: "pointer", letterSpacing: "0.02em",
-          }}>▶ Trigger Agent 2</button>
+        {!triggered && atThreshold && c.dict_eligible && (
+          <a
+            href="/admin/clusters"
+            style={{
+              background: "transparent", color: "var(--dark-blue)",
+              border: "1.5px solid var(--golden-tech)",
+              fontSize: 11.5, fontWeight: 700, padding: "5px 11px", borderRadius: 999,
+              fontFamily: "Montserrat", cursor: "pointer", letterSpacing: "0.02em",
+              textDecoration: "none", display: "inline-block",
+            }}
+          >▶ Trigger Agent 2</a>
+        )}
+        {!triggered && atThreshold && !c.dict_eligible && c.it_notified && (
+          <span style={{ fontSize: 11, color: "#3F7A1A", fontFamily: "Montserrat", fontWeight: 600 }}>IT Notified ✓</span>
+        )}
+        {!triggered && atThreshold && !c.dict_eligible && !c.it_notified && (
+          <a href="/admin/clusters" style={{ fontSize: 11, color: "var(--colorado-red)", fontFamily: "Montserrat", fontWeight: 600, textDecoration: "none" }}>Notify IT →</a>
         )}
         {!triggered && !atThreshold && (
           <span style={{ fontSize: 11, color: "var(--silver)" }}>Below threshold</span>
@@ -180,30 +163,47 @@ function HealthRow({ h }) {
 }
 
 function Dashboard() {
-  const [threshold, setThreshold] = useState(10);
-  const max = 15;
-
+  const [threshold, setThreshold] = useState(5);
   const [liveStats, setLiveStats] = useState(null)
-  const [liveClusters, setLiveClusters] = useState(CLUSTERS)
-  const [liveHealth, setLiveHealth] = useState(HEALTH)
+  const [liveClusters, setLiveClusters] = useState(null)
+  const [liveHealth, setLiveHealth] = useState(null)
+  const [liveJobs, setLiveJobs] = useState(null)
+
+  const max = liveClusters ? Math.max(...liveClusters.map(c => c.count), 1) : 5
+
+  useEffect(() => {
+    getConfig().then(cfg => setThreshold(cfg.cluster_threshold)).catch(() => {})
+  }, [])
 
   useEffect(() => {
     const fetchAll = async () => {
       try {
-        const [stats, clusters, health] = await Promise.all([
-          getDashboardStats(), getClusters(), getSystemHealth(),
+        const [stats, clusters, health, jobs] = await Promise.all([
+          getDashboardStats(), getClusters(), getSystemHealth(), getDictJobs(),
         ])
         setLiveStats(stats)
-        setLiveClusters(clusters.length > 0 ? clusters : CLUSTERS)
-        if (health.ollama) {
-          setLiveHealth([
-            { name: 'Ollama (Llama 3.1:8b)', latency: '—', status: health.ollama === 'online' ? 'online' : 'offline', detail: 'local inference' },
-            { name: 'Gemini Flash', latency: '—', status: 'online', detail: 'cloud API' },
-            { name: 'Gmail SMTP', latency: '—', status: health.gmail_smtp === 'online' ? 'online' : 'offline', detail: 'outbound only' },
-            { name: 'APScheduler', latency: 'next: 60s', status: health.scheduler === 'running' ? 'running' : 'stopped', detail: 'distress sweep' },
-          ])
-        }
-      } catch (e) { /* use static fallback */ }
+        setLiveClusters(clusters.map(c => ({
+          ...c,
+          status: c.agent2_triggered ? "triggered" : c.threshold_hit ? "threshold" : "below",
+        })))
+        setLiveHealth([
+          { name: 'Ollama (Llama 3.1:8b)', latency: '—', status: health.ollama === 'online' ? 'online' : 'offline', detail: 'local inference' },
+          { name: 'Gemini Flash', latency: '—', status: 'online', detail: 'cloud API' },
+          { name: 'Gmail SMTP', latency: '—', status: health.gmail_smtp === 'online' ? 'online' : 'offline', detail: 'outbound only' },
+          { name: 'APScheduler', latency: 'next: 60s', status: health.scheduler === 'running' ? 'running' : 'stopped', detail: 'distress sweep' },
+        ])
+        const mapped = Array.isArray(jobs) ? jobs.slice(0, 3).map(j => {
+          const isProcessing = j.status === 'processing' || j.status === 'queued'
+          const time = j.created_at ? new Date(j.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'
+          const meta = j.status === 'completed'
+            ? `${j.entry_count ?? '—'} entries · ${time}`
+            : isProcessing ? 'processing…'
+            : j.status === 'failed' ? 'generation failed'
+            : time
+          return { id: j.id, file: j.filename, state: j.status, meta }
+        }) : []
+        setLiveJobs(mapped)
+      } catch (e) { /* backend offline — keep null state, no stale flash */ }
     }
     fetchAll()
     const id = setInterval(fetchAll, 10000)
@@ -211,11 +211,16 @@ function Dashboard() {
   }, [])
 
   const kpis = liveStats ? [
-    { label: "Tickets Today", value: String(liveStats.tickets_today), trend: "Live", tone: "up", sub: "from backend" },
+    { label: "Tickets (24h)", value: String(liveStats.tickets_today), trend: "Live", tone: "up", sub: "rolling window" },
     { label: "Auto-Resolution Rate", value: liveStats.auto_resolution_rate + "%", trend: "Agent 1", tone: "up", sub: "handled" },
     { label: "Dict Jobs This Week", value: String(liveStats.dict_jobs_this_week), trend: "Stable", tone: "neutral", sub: "0 failed" },
     { label: "Students Flagged", value: String(liveStats.students_flagged_this_week), trend: "Pending review", tone: "warn", sub: "awaiting approval" },
-  ] : KPIS
+  ] : [
+    { label: "Tickets Today",        value: "—", trend: "—", tone: "neutral", sub: "loading…" },
+    { label: "Auto-Resolution Rate", value: "—", trend: "—", tone: "neutral", sub: "loading…" },
+    { label: "Dict Jobs This Week",  value: "—", trend: "—", tone: "neutral", sub: "loading…" },
+    { label: "Students Flagged",     value: "—", trend: "—", tone: "neutral", sub: "loading…" },
+  ]
 
   return (
     <div className="fade-in" style={{ display: "flex", flexDirection: "column", gap: 24 }}>
@@ -263,15 +268,15 @@ function Dashboard() {
           </div>
         </div>
         <div>
-          {liveClusters.map((c) => <ClusterRow key={c.system} c={c} max={max} threshold={threshold} />)}
+          {liveClusters === null
+            ? <div style={{ padding: "28px", textAlign: "center", color: "var(--silver)", fontSize: 13 }}>Loading clusters…</div>
+            : liveClusters.map((c) => <ClusterRow key={c.id || (c.system + '-' + c.topic)} c={c} max={max} threshold={threshold} />)
+          }
         </div>
         <div className="px-5 py-3 flex items-center justify-between" style={{ borderTop: "1px solid var(--border)", background: "var(--surface)", borderRadius: "0 0 8px 8px" }}>
           <div style={{ fontSize: 11.5, color: "var(--silver)" }}>
             <span style={{ display: "inline-block", width: 8, height: 2, background: "var(--colorado-red)", verticalAlign: "middle", marginRight: 6 }}></span>
             Red marker shows current threshold ({threshold} tickets)
-          </div>
-          <div style={{ fontSize: 11.5, color: "var(--dark-gray)" }}>
-            Updated <span className="mono">14s</span> ago
           </div>
         </div>
       </section>
@@ -293,7 +298,12 @@ function Dashboard() {
             </h3>
             <a style={{ fontSize: 11.5, color: "var(--earth-blue)", fontWeight: 600, cursor: "pointer" }}>View all →</a>
           </div>
-          {JOBS.map((j) => <JobRow key={j.file} j={j} />)}
+          {liveJobs === null
+            ? <div style={{ padding: '24px 0', textAlign: 'center', fontSize: 12, color: 'var(--silver)' }}>Loading…</div>
+            : liveJobs.length === 0
+            ? <div style={{ padding: '24px 0', textAlign: 'center', fontSize: 12, color: 'var(--silver)' }}>No dictionary jobs yet.</div>
+            : liveJobs.map((j) => <JobRow key={j.id} j={j} />)
+          }
         </div>
 
         <div
@@ -311,7 +321,10 @@ function Dashboard() {
             </h3>
             <span style={{ fontSize: 11, color: "var(--silver)", fontWeight: 600 }}>4 / 4 operational</span>
           </div>
-          {liveHealth.map((h) => <HealthRow key={h.name} h={h} />)}
+          {liveHealth === null
+            ? <div style={{ padding: '24px 0', textAlign: 'center', fontSize: 12, color: 'var(--silver)' }}>Loading…</div>
+            : liveHealth.map((h) => <HealthRow key={h.name} h={h} />)
+          }
         </div>
       </section>
     </div>

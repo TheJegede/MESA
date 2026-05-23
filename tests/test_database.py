@@ -58,4 +58,5 @@ def test_cluster_defaults(db):
     result = db.query(Cluster).first()
     assert result.threshold_hit is False
     assert result.agent2_triggered is False
+    assert result.dict_eligible is False
     assert result.count == 0

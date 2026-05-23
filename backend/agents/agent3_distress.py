@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import re
 import datetime
@@ -6,6 +7,8 @@ import ollama
 from sqlalchemy.orm import Session
 from backend.database import DistressFlag
 from backend.config import OUTPUTS_DIR, MOCK_DATA_DIR
+
+logger = logging.getLogger(__name__)
 
 SYSTEM_PROMPT = """You are MESA Agent 3, a student academic distress detection system for Colorado School of Mines.
 You will receive a JSON object with student engagement signals. Assess distress risk.
@@ -47,33 +50,39 @@ def scan_students(db: Session) -> list:
                     {"role": "user", "content": prompt},
                 ],
             )
-            raw = response.message.content.strip()
-            raw = re.sub(r"^```(?:json)?\s*", "", raw)
-            raw = re.sub(r"\s*```$", "", raw)
-            result = json.loads(raw)
-        except Exception:
+            raw = response['message']['content']
+            match = re.search(r"\{[\s\S]*\}", raw)
+            if not match:
+                continue
+            result = json.loads(match.group(0))
+        except Exception as e:
+            logger.error("Agent 3: Ollama failed for student %s: %s", student_id, e)
             continue
 
         if not result.get("flag_for_review"):
             continue
 
-        os.makedirs(OUTPUTS_DIR, exist_ok=True)
-        timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d_%H%M%S")
-        report_path = os.path.join(OUTPUTS_DIR, f"risk_{student_id}_{timestamp}.json")
-        with open(report_path, "w", encoding="utf-8") as f:
-            json.dump(result, f, indent=2)
+        try:
+            os.makedirs(OUTPUTS_DIR, exist_ok=True)
+            timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d_%H%M%S")
+            report_path = os.path.join(OUTPUTS_DIR, f"risk_{student_id}_{timestamp}.json")
+            with open(report_path, "w", encoding="utf-8") as f:
+                json.dump(result, f, indent=2)
 
-        flag = DistressFlag(
-            student_id=student_id,
-            risk_score=result["risk_score"],
-            risk_level=result["risk_level"],
-            risk_factors=json.dumps(result["risk_factors"]),
-            recommended_action=result["recommended_action"],
-            report_path=report_path,
-            status="pending",
-        )
-        db.add(flag)
-        flags_created.append(student_id)
+            flag = DistressFlag(
+                student_id=student_id,
+                risk_score=result["risk_score"],
+                risk_level=result["risk_level"],
+                risk_factors=json.dumps(result["risk_factors"]),
+                recommended_action=result["recommended_action"],
+                report_path=report_path,
+                status="pending",
+            )
+            db.add(flag)
+            flags_created.append(student_id)
+        except Exception as e:
+            logger.error("Agent 3: Failed to create distress flag for %s: %s", student_id, e)
+            continue
 
     db.commit()
     return flags_created

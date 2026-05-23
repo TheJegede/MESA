@@ -1,3 +1,4 @@
+.claude/
 .env
 __pycache__/
 *.pyc
@@ -13,3 +14,9 @@ dist/
 mesa.db
 backend/outputs/*
 !backend/outputs/.gitkeep
+backend/uploads/*
+!backend/uploads/.gitkeep
+docs
+CLAUDE.md
+MEMORY.md
+ERRORS.md

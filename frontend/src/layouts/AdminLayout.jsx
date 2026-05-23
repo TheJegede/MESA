@@ -36,7 +36,7 @@ function Sidebar({ currentRoute, onNavigate }) {
   return (
     <aside
       className="flex flex-col justify-between"
-      style={{ width: 256, background: "var(--blaster-blue)", color: "#fff", minHeight: "100vh" }}
+      style={{ width: 256, flexShrink: 0, background: "var(--blaster-blue)", color: "#fff", height: "100vh", position: "sticky", top: 0, overflowY: "auto" }}
     >
       <div>
         {/* Brand */}
@@ -133,9 +133,9 @@ function TopBar({ pageTitle }) {
 
 function AdminLayout({ pageTitle, currentRoute, onNavigate, children }) {
   return (
-    <div className="flex" style={{ minHeight: "100vh" }}>
+    <div className="flex" style={{ height: "100vh", overflow: "hidden" }}>
       <Sidebar currentRoute={currentRoute} onNavigate={onNavigate} />
-      <div className="flex-1 flex flex-col" style={{ minWidth: 0 }}>
+      <div className="flex-1 flex flex-col" style={{ minWidth: 0, overflowY: "auto" }}>
         <TopBar pageTitle={pageTitle} />
         <main className="flex-1" style={{ background: "var(--surface)", padding: "28px 32px" }}>
           {children}
