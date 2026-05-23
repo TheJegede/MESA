@@ -1,0 +1,13 @@
+student_id,advisor_netid,session_date,session_type,program_code,credits_earned,credits_remaining,cumulative_gpa,enrollment_status,projected_graduation,alert_type
+M10001,adavis,2024-09-05,Initial Advising,CSCI-BS,30,90,3.45,Full-time,Spring 2027,None
+M10002,mchen,2024-09-06,Degree Audit,CSCI-BS,85,35,3.92,Full-time,Spring 2025,None
+M10003,adavis,2024-09-10,Academic Concern,CSCI-BS,28,92,2.54,Full-time,Fall 2027,Low GPA
+M10004,rlopez,2024-09-04,Initial Advising,CHGN-BS,15,105,3.10,Full-time,Spring 2028,None
+M10005,mchen,2024-09-12,Course Planning,CSCI-BS,72,48,3.67,Full-time,Fall 2025,None
+M10006,adavis,2024-09-03,Honors Check-in,CSCI-MS,12,48,3.98,Full-time,Spring 2026,None
+M10007,rlopez,2024-09-15,Academic Concern,MATH-BS,18,102,2.20,Part-time,Fall 2028,Low GPA
+M10008,mchen,2024-09-08,Course Planning,CSCI-BS,60,60,3.75,Full-time,Fall 2025,None
+M10009,adavis,2024-09-18,Academic Concern,CSCI-BS,12,108,2.10,Part-time,Spring 2029,Low GPA
+M10010,rlopez,2024-09-07,Initial Advising,PETE-BS,27,93,3.22,Full-time,Spring 2027,None
+M10011,mchen,2024-09-11,Degree Audit,CHGN-BS,55,65,3.55,Full-time,Spring 2026,None
+M10012,adavis,2024-09-14,Transfer Credit Review,CSCI-BS,45,75,2.91,Full-time,Fall 2026,None

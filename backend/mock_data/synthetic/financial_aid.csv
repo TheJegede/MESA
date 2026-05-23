@@ -1,0 +1,13 @@
+student_id,first_name,last_name,aid_year,aid_type,financial_aid_amount,disbursement_date,award_status,fafsa_efc,dependency_status,academic_year_gpa
+M10001,Jordan,Hayes,2024-2025,Pell Grant,6895.00,2024-08-15,Disbursed,2340,Dependent,3.45
+M10002,Priya,Nambiar,2024-2025,Merit Scholarship,12000.00,2024-08-15,Disbursed,0,Independent,3.92
+M10003,Luis,Ortega,2024-2025,Subsidized Loan,5500.00,2024-08-20,Disbursed,8900,Dependent,2.87
+M10004,Amara,Diallo,2024-2025,Pell Grant,6895.00,2024-08-15,Disbursed,1200,Dependent,3.10
+M10005,Chen,Wei,2024-2025,Work Study,3000.00,2024-09-01,Active,4500,Independent,3.67
+M10006,Fatima,Al-Rashid,2024-2025,Merit Scholarship,15000.00,2024-08-15,Disbursed,0,Dependent,3.98
+M10007,Marcus,Thompson,2024-2025,Unsubsidized Loan,7000.00,2024-08-20,Disbursed,11200,Dependent,2.54
+M10008,Yuki,Tanaka,2024-2025,Merit Scholarship,10000.00,2024-08-15,Disbursed,0,Independent,3.75
+M10009,Destiny,Williams,2024-2025,Pell Grant,4500.00,2024-08-15,Pending,3100,Dependent,2.30
+M10010,Arjun,Patel,2024-2025,Subsidized Loan,5500.00,,Pending,6700,Dependent,3.22
+M10011,Sofia,Reyes,2024-2025,Work Study,2800.00,2024-09-01,Active,2900,Dependent,3.55
+M10012,Devon,Clark,2024-2025,Unsubsidized Loan,6500.00,2024-08-20,Disbursed,9800,Independent,2.91

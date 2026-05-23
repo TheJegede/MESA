@@ -1,0 +1,13 @@
+ticket_id,submitter_netid,category,priority,system_affected,description_summary,created_at,assigned_to,status,resolved_at,resolution_notes
+TK1001,jhayes,Login Issue,High,Trailhead Portal,Cannot log in after password reset,2024-09-03 08:14:00,lmorales,Resolved,2024-09-03 10:45:00,Reset SSO token via admin console
+TK1002,pnambiar,Software Request,Low,Campus Labs,Requesting MATLAB license for research,2024-09-04 09:30:00,bkim,Closed,2024-09-05 14:00:00,License allocated from pool
+TK1003,lortega,Network Connectivity,High,Eduroam,Laptop drops WiFi every 30 minutes in Brown Hall,2024-09-04 13:22:00,lmorales,Resolved,2024-09-05 09:10:00,Updated wireless driver and re-enrolled device
+TK1004,adiallo,Email,Medium,Outlook,Missing emails after migration to O365,2024-09-05 10:05:00,rsingh,Resolved,2024-09-06 11:30:00,Recovered from archive folder post-migration
+TK1005,cwei,Software Install,Low,Jupyter Hub,Kernel not starting in JupyterHub,2024-09-06 15:45:00,bkim,Open,,
+TK1006,falrashid,Account Access,High,Banner Self-Service,Account locked out before registration deadline,2024-09-08 07:58:00,lmorales,Resolved,2024-09-08 08:45:00,Unlocked via Banner admin after ID verification
+TK1007,mthompson,Hardware,Medium,Lab PC,Keyboard unresponsive in EIT 118,2024-09-09 11:20:00,hwilson,Resolved,2024-09-09 13:00:00,Replaced keyboard from spare inventory
+TK1008,ytanaka,Printing,Low,PaperCut,Print quota not credited after payment,2024-09-10 14:30:00,rsingh,Closed,2024-09-11 09:00:00,Manual credit applied, payment system lag confirmed
+TK1009,dwilliams,Login Issue,High,Canvas LMS,Enrolled in course but no Canvas access,2024-09-11 09:15:00,bkim,Resolved,2024-09-11 10:30:00,Manual Canvas enrollment sync triggered
+TK1010,apatel,VPN,Medium,GlobalProtect VPN,Cannot connect to VPN off-campus,2024-09-12 16:00:00,lmorales,Open,,
+TK1011,sreyes,Software Request,Low,Adobe Creative Cloud,Requesting CC license for design coursework,2024-09-13 10:45:00,hwilson,Closed,2024-09-14 09:00:00,License assigned from department pool
+TK1012,dclark,Network Connectivity,High,ResNet,No internet in dorm room after move-in,2024-09-14 18:30:00,rsingh,Resolved,2024-09-15 08:00:00,Wall port activated, MAC registered

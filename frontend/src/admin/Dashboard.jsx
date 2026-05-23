@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react'
-import { getDashboardStats, getClusters, getSystemHealth, getDictJobs, getConfig, triggerAgent2 } from '../api/mesa'
+import React, { useState, useEffect, useCallback } from 'react'
+import { getDashboardStats, getClusters, getSystemHealth, getDictJobs, getConfig, triggerAgent2, notifyItTeam } from '../api/mesa'
 
 
 function KpiCard({ k }) {
@@ -36,7 +36,7 @@ function KpiCard({ k }) {
   );
 }
 
-function ClusterRow({ c, max, threshold }) {
+function ClusterRow({ c, max, threshold, onAction }) {
   const triggered = c.status === "triggered";
   const atThreshold = c.count >= threshold;
   const pct = Math.min(100, Math.round((c.count / max) * 100));
@@ -94,22 +94,24 @@ function ClusterRow({ c, max, threshold }) {
           }}>🟠 Agent 2 Active</span>
         )}
         {!triggered && atThreshold && c.dict_eligible && (
-          <a
-            href="/admin/clusters"
+          <button
+            onClick={() => triggerAgent2(c.id).then(onAction)}
             style={{
               background: "transparent", color: "var(--dark-blue)",
               border: "1.5px solid var(--golden-tech)",
               fontSize: 11.5, fontWeight: 700, padding: "5px 11px", borderRadius: 999,
               fontFamily: "Montserrat", cursor: "pointer", letterSpacing: "0.02em",
-              textDecoration: "none", display: "inline-block",
             }}
-          >▶ Trigger Agent 2</a>
+          >▶ Trigger Agent 2</button>
         )}
         {!triggered && atThreshold && !c.dict_eligible && c.it_notified && (
           <span style={{ fontSize: 11, color: "#3F7A1A", fontFamily: "Montserrat", fontWeight: 600 }}>IT Notified ✓</span>
         )}
         {!triggered && atThreshold && !c.dict_eligible && !c.it_notified && (
-          <a href="/admin/clusters" style={{ fontSize: 11, color: "var(--colorado-red)", fontFamily: "Montserrat", fontWeight: 600, textDecoration: "none" }}>Notify IT →</a>
+          <button
+            onClick={() => notifyItTeam(c.id).then(onAction)}
+            style={{ fontSize: 11, color: "var(--colorado-red)", fontFamily: "Montserrat", fontWeight: 600, background: "transparent", border: "none", cursor: "pointer", padding: 0 }}
+          >Notify IT →</button>
         )}
         {!triggered && !atThreshold && (
           <span style={{ fontSize: 11, color: "var(--silver)" }}>Below threshold</span>
@@ -175,40 +177,41 @@ function Dashboard() {
     getConfig().then(cfg => setThreshold(cfg.cluster_threshold)).catch(() => {})
   }, [])
 
+  const fetchAll = useCallback(async () => {
+    try {
+      const [stats, clusters, health, jobs] = await Promise.all([
+        getDashboardStats(), getClusters(), getSystemHealth(), getDictJobs(),
+      ])
+      setLiveStats(stats)
+      setLiveClusters(clusters.map(c => ({
+        ...c,
+        status: c.agent2_triggered ? "triggered" : c.threshold_hit ? "threshold" : "below",
+      })))
+      setLiveHealth([
+        { name: 'Ollama (Llama 3.1:8b)', latency: '—', status: health.ollama === 'online' ? 'online' : 'offline', detail: 'local inference' },
+        { name: 'Gemini Flash', latency: '—', status: 'online', detail: 'cloud API' },
+        { name: 'Gmail SMTP', latency: '—', status: health.gmail_smtp === 'online' ? 'online' : 'offline', detail: 'outbound only' },
+        { name: 'APScheduler', latency: 'next: 60s', status: health.scheduler === 'running' ? 'running' : 'stopped', detail: 'distress sweep' },
+      ])
+      const mapped = Array.isArray(jobs) ? jobs.slice(0, 3).map(j => {
+        const isProcessing = j.status === 'processing' || j.status === 'queued'
+        const time = j.created_at ? new Date(j.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'
+        const meta = j.status === 'completed'
+          ? `${j.entry_count ?? '—'} entries · ${time}`
+          : isProcessing ? 'processing…'
+          : j.status === 'failed' ? 'generation failed'
+          : time
+        return { id: j.id, file: j.filename, state: j.status, meta }
+      }) : []
+      setLiveJobs(mapped)
+    } catch (e) { /* backend offline — keep null state, no stale flash */ }
+  }, [])
+
   useEffect(() => {
-    const fetchAll = async () => {
-      try {
-        const [stats, clusters, health, jobs] = await Promise.all([
-          getDashboardStats(), getClusters(), getSystemHealth(), getDictJobs(),
-        ])
-        setLiveStats(stats)
-        setLiveClusters(clusters.map(c => ({
-          ...c,
-          status: c.agent2_triggered ? "triggered" : c.threshold_hit ? "threshold" : "below",
-        })))
-        setLiveHealth([
-          { name: 'Ollama (Llama 3.1:8b)', latency: '—', status: health.ollama === 'online' ? 'online' : 'offline', detail: 'local inference' },
-          { name: 'Gemini Flash', latency: '—', status: 'online', detail: 'cloud API' },
-          { name: 'Gmail SMTP', latency: '—', status: health.gmail_smtp === 'online' ? 'online' : 'offline', detail: 'outbound only' },
-          { name: 'APScheduler', latency: 'next: 60s', status: health.scheduler === 'running' ? 'running' : 'stopped', detail: 'distress sweep' },
-        ])
-        const mapped = Array.isArray(jobs) ? jobs.slice(0, 3).map(j => {
-          const isProcessing = j.status === 'processing' || j.status === 'queued'
-          const time = j.created_at ? new Date(j.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'
-          const meta = j.status === 'completed'
-            ? `${j.entry_count ?? '—'} entries · ${time}`
-            : isProcessing ? 'processing…'
-            : j.status === 'failed' ? 'generation failed'
-            : time
-          return { id: j.id, file: j.filename, state: j.status, meta }
-        }) : []
-        setLiveJobs(mapped)
-      } catch (e) { /* backend offline — keep null state, no stale flash */ }
-    }
     fetchAll()
     const id = setInterval(fetchAll, 10000)
     return () => clearInterval(id)
-  }, [])
+  }, [fetchAll])
 
   const kpis = liveStats ? [
     { label: "Tickets (24h)", value: String(liveStats.tickets_today), trend: "Live", tone: "up", sub: "rolling window" },
@@ -270,7 +273,7 @@ function Dashboard() {
         <div>
           {liveClusters === null
             ? <div style={{ padding: "28px", textAlign: "center", color: "var(--silver)", fontSize: 13 }}>Loading clusters…</div>
-            : liveClusters.map((c) => <ClusterRow key={c.id || (c.system + '-' + c.topic)} c={c} max={max} threshold={threshold} />)
+            : liveClusters.map((c) => <ClusterRow key={c.id || (c.system + '-' + c.topic)} c={c} max={max} threshold={threshold} onAction={fetchAll} />)
           }
         </div>
         <div className="px-5 py-3 flex items-center justify-between" style={{ borderTop: "1px solid var(--border)", background: "var(--surface)", borderRadius: "0 0 8px 8px" }}>
@@ -296,7 +299,7 @@ function Dashboard() {
             <h3 style={{ fontFamily: "Montserrat", fontWeight: 700, fontSize: 15, color: "var(--dark-blue)" }}>
               Recent Dictionary Jobs
             </h3>
-            <a style={{ fontSize: 11.5, color: "var(--earth-blue)", fontWeight: 600, cursor: "pointer" }}>View all →</a>
+            <a href="/admin/dictionary" style={{ fontSize: 11.5, color: "var(--earth-blue)", fontWeight: 600, cursor: "pointer", textDecoration: "none" }}>View all →</a>
           </div>
           {liveJobs === null
             ? <div style={{ padding: '24px 0', textAlign: 'center', fontSize: 12, color: 'var(--silver)' }}>Loading…</div>
@@ -319,7 +322,11 @@ function Dashboard() {
             <h3 style={{ fontFamily: "Montserrat", fontWeight: 700, fontSize: 15, color: "var(--dark-blue)" }}>
               System Health
             </h3>
-            <span style={{ fontSize: 11, color: "var(--silver)", fontWeight: 600 }}>4 / 4 operational</span>
+            <span style={{ fontSize: 11, color: "var(--silver)", fontWeight: 600 }}>
+            {liveHealth
+              ? `${liveHealth.filter(h => h.status === 'online' || h.status === 'running').length} / ${liveHealth.length} operational`
+              : '— / 4 operational'}
+          </span>
           </div>
           {liveHealth === null
             ? <div style={{ padding: '24px 0', textAlign: 'center', fontSize: 12, color: 'var(--silver)' }}>Loading…</div>

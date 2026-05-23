@@ -38,14 +38,14 @@ def scan_schema_for_ferpa(filepath: str) -> dict:
         if ext == ".csv":
             with open(filepath, encoding="utf-8") as f:
                 reader = csv.DictReader(f)
-                for row in reader:
-                    field_name = row.get("field_name") or row.get("column_name") or list(row.values())[0]
-                    columns.append(field_name)
+                columns = list(reader.fieldnames or [])
         elif ext == ".json":
             with open(filepath, encoding="utf-8") as f:
                 data = json.load(f)
-            if isinstance(data, list):
-                columns = [item.get("field_name", str(item)) for item in data]
+            if isinstance(data, list) and data:
+                first = data[0]
+                if isinstance(first, dict):
+                    columns = list(first.keys())
     except Exception:
         return {"ferpa_flag": True, "sensitive_fields": []}
     ferpa_fields = scan_for_ferpa(columns)

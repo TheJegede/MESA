@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react'
+import { getSystemHealth } from '../api/mesa'
 
 function NavLink({ icon, label, route, currentRoute, onNavigate }) {
   const active = currentRoute === route;
@@ -33,6 +34,15 @@ function SystemRow({ status, label }) {
 }
 
 function Sidebar({ currentRoute, onNavigate }) {
+  const [health, setHealth] = useState({ ollama: 'unknown', gmail_smtp: 'unknown', scheduler: 'unknown' })
+
+  useEffect(() => {
+    const fetch_ = () => getSystemHealth().then(setHealth).catch(() => {})
+    fetch_()
+    const id = setInterval(fetch_, 30000)
+    return () => clearInterval(id)
+  }, [])
+
   return (
     <aside
       className="flex flex-col justify-between"
@@ -77,17 +87,17 @@ function Sidebar({ currentRoute, onNavigate }) {
         <div className="px-5 pb-2" style={{ color: "var(--silver)", fontSize: 10, letterSpacing: "0.16em", fontFamily: "Montserrat", fontWeight: 600 }}>
           SYSTEM
         </div>
-        <SystemRow status="online" label="Ollama (Llama 3.1:8b)" />
+        <SystemRow status={health.ollama === 'online' ? 'online' : 'offline'} label="Ollama (Llama 3.1:8b)" />
         <SystemRow status="online" label="Gemini Flash" />
-        <SystemRow status="running" label="APScheduler" />
+        <SystemRow status={health.scheduler === 'running' ? 'running' : 'offline'} label="APScheduler" />
         <div className="px-5 pt-4 mt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.08)" }}>
           <div className="flex items-center gap-2.5">
             <div style={{ width: 28, height: 28, borderRadius: "50%", background: "var(--golden-tech)", color: "var(--dark-blue)", display: "flex", alignItems: "center", justifyContent: "center", fontFamily: "Montserrat", fontWeight: 700, fontSize: 11 }}>
-              JR
+              TJ
             </div>
             <div className="leading-tight">
-              <div style={{ color: "#fff", fontSize: 12, fontWeight: 600 }}>J. Rodriguez</div>
-              <div style={{ color: "var(--light-blue)", fontSize: 10 }}>IT Operations</div>
+              <div style={{ color: "#fff", fontSize: 12, fontWeight: 600 }}>Taiwo Jegede</div>
+              <div style={{ color: "var(--light-blue)", fontSize: 10 }}>Solutions Architect</div>
             </div>
           </div>
         </div>

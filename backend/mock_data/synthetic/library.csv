@@ -1,0 +1,13 @@
+patron_id,title,author,isbn,publication_year,subject_area,call_number,format_type,checkout_date,due_date,return_date,overdue_flag,fine_amount,reserve_type,course_crn
+P5001,Introduction to Algorithms,Cormen et al.,978-0262033848,2009,Computer Science,QA76.9 A43 C67 2009,Physical,2024-09-05,2024-09-26,2024-09-24,false,0.00,None,
+P5002,Applied Partial Differential Equations,Haberman,978-0130652430,2003,Mathematics,QA377 .H23 2003,Physical,2024-09-06,2024-09-27,,false,0.00,Course Reserve,10234
+P5003,Engineering Fluid Mechanics,Elger et al.,978-1118880685,2015,Engineering,TA357 .E44 2015,Physical,2024-09-07,2024-09-28,2024-10-02,true,1.40,None,
+P5004,Python for Data Analysis,McKinney,978-1491957660,2018,Data Science,QA76.73.P98 M39 2018,EBook,2024-09-08,2024-09-29,2024-09-28,false,0.00,None,
+P5005,The Art of Electronics,Horowitz & Hill,978-0521809269,2015,Electrical Engineering,TK7815 .H67 2015,Physical,2024-09-09,2024-09-30,,false,0.00,Course Reserve,10501
+P5006,Fundamentals of Machine Learning,Alpaydin,978-0262012430,2020,Computer Science,Q325.5 .A46 2020,Physical,2024-09-10,2024-10-01,2024-09-30,false,0.00,None,
+P5007,Organic Chemistry,Clayden et al.,978-0199270293,2012,Chemistry,QD251.3 .C57 2012,Physical,2024-09-11,2024-10-02,,false,0.00,Course Reserve,10872
+P5008,Numerical Methods for Engineers,Chapra & Canale,978-0073397924,2014,Engineering,TA335 .C47 2014,Physical,2024-09-04,2024-09-25,2024-10-05,true,4.00,None,
+P5009,Deep Learning,Goodfellow et al.,978-0262035613,2016,Computer Science,Q325.5 .G66 2016,Physical,2024-09-12,2024-10-03,,false,0.00,None,
+P5010,Structural Analysis,Hibbeler,978-0134610672,2018,Civil Engineering,TA645 .H53 2018,Physical,2024-09-13,2024-10-04,2024-10-03,false,0.00,Course Reserve,11045
+P5011,Linear Algebra and Its Applications,Lay,978-0321982384,2015,Mathematics,QA184.2 .L39 2015,Physical,2024-09-03,2024-09-24,2024-09-22,false,0.00,None,
+P5012,Thermodynamics: An Engineering Approach,Cengel & Boles,978-0073398174,2014,Mechanical Engineering,TJ265 .C43 2014,Physical,2024-09-15,2024-10-06,,false,0.00,Course Reserve,10654
