@@ -143,12 +143,22 @@ app.add_middleware(
 
 # ── Helpers ─────────────────────────────────────────────────────────────────
 
+def _utc_iso(dt: datetime.datetime | None) -> str | None:
+    if not dt:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=datetime.timezone.utc)
+    else:
+        dt = dt.astimezone(datetime.timezone.utc)
+    return dt.isoformat().replace("+00:00", "Z")
+
+
 def _serialize_message(m: TicketMessage) -> dict:
     return {
         "id": m.id,
         "sender": m.sender,
         "content": m.content,
-        "created_at": m.created_at.isoformat() if m.created_at else None,
+        "created_at": _utc_iso(m.created_at),
     }
 
 
@@ -237,7 +247,7 @@ def list_tickets(db: Session = Depends(get_db)):
             "auto_resolved": t.auto_resolved,
             "resolution": t.resolution,
             "status": t.status or ticket_status_for_resolution(t.resolution),
-            "created_at": t.created_at.isoformat() if t.created_at else None,
+            "created_at": _utc_iso(t.created_at),
         }
         for t in tickets
     ]
@@ -254,7 +264,7 @@ def list_clusters(db: Session = Depends(get_db)):
             "topic": c.topic,
             "system": c.system,
             "count": c.count,
-            "last_seen": c.last_seen.isoformat() if c.last_seen else None,
+            "last_seen": _utc_iso(c.last_seen),
             "threshold_hit": c.threshold_hit,
             "agent2_triggered": c.agent2_triggered,
             "dict_eligible": c.dict_eligible,
@@ -431,7 +441,7 @@ def list_dict_jobs(db: Session = Depends(get_db)):
             "triggered_by_cluster": j.triggered_by_cluster,
             "faculty_email": j.faculty_email,
             "entry_count": j.entry_count,
-            "created_at": j.created_at.isoformat() if j.created_at else None,
+            "created_at": _utc_iso(j.created_at),
         }
         for j in jobs
     ]
@@ -522,7 +532,7 @@ def list_distress_flags(db: Session = Depends(get_db)):
             "recommended_action": f.recommended_action,
             "report_path": f.report_path,
             "status": f.status,
-            "created_at": f.created_at.isoformat() if f.created_at else None,
+            "created_at": _utc_iso(f.created_at),
         }
         for f in flags
     ]
@@ -588,13 +598,13 @@ def get_ticket_messages(ticket_id: int, db: Session = Depends(get_db)):
     )
     if not messages and ticket.resolution:
         return [{"id": 0, "sender": "ai", "content": ticket.resolution,
-                 "created_at": ticket.created_at.isoformat() if ticket.created_at else None}]
+                 "created_at": _utc_iso(ticket.created_at)}]
     if not messages:
         return [{
             "id": 0,
             "sender": "system",
             "content": "MESA has received this ticket. No automated resolution is available yet; add a reply if you can provide more detail.",
-            "created_at": ticket.created_at.isoformat() if ticket.created_at else None,
+            "created_at": _utc_iso(ticket.created_at),
         }]
     return [_serialize_message(m) for m in messages]
 
@@ -710,7 +720,7 @@ def list_escalated_threads(db: Session = Depends(get_db)):
         )
         if not messages and t.resolution:
             msgs = [{"id": 0, "sender": "ai", "content": t.resolution,
-                     "created_at": t.created_at.isoformat() if t.created_at else None}]
+                     "created_at": _utc_iso(t.created_at)}]
         else:
             msgs = [_serialize_message(m) for m in messages]
         result.append({
@@ -719,8 +729,8 @@ def list_escalated_threads(db: Session = Depends(get_db)):
             "system_affected": t.system_affected,
             "severity": t.severity,
             "status": t.status,
-            "last_activity": t.last_activity.isoformat() if t.last_activity else None,
-            "created_at": t.created_at.isoformat() if t.created_at else None,
+            "last_activity": _utc_iso(t.last_activity),
+            "created_at": _utc_iso(t.created_at),
             "messages": msgs,
         })
     return result
@@ -767,5 +777,5 @@ def system_health():
         "ollama": ollama_status,
         "gmail_smtp": smtp_status,
         "scheduler": "running" if scheduler.running else "stopped",
-        "timestamp": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+        "timestamp": _utc_iso(datetime.datetime.now(datetime.timezone.utc)),
     }

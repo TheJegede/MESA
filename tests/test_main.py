@@ -16,6 +16,14 @@ def test_get_tickets(client):
     assert isinstance(resp.json(), list)
 
 
+def test_get_tickets_serializes_created_at_as_utc(client):
+    resp = client.get("/tickets")
+    assert resp.status_code == 200
+    dated = [ticket for ticket in resp.json() if ticket.get("created_at")]
+    assert dated
+    assert dated[0]["created_at"].endswith("Z")
+
+
 def test_get_clusters(client):
     resp = client.get("/clusters")
     assert resp.status_code == 200

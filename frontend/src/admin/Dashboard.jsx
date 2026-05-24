@@ -20,8 +20,50 @@ function KpiCard({ k }) {
       }}
     >
       <div style={{ position: "absolute", top: 0, left: 0, right: 0, height: 4, background: "var(--blaster-blue)" }}></div>
-      <div style={{ fontSize: 11, color: "var(--dark-gray)", fontFamily: "Montserrat", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>
-        {k.label}
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
+        <div style={{ fontSize: 11, color: "var(--dark-gray)", fontFamily: "Montserrat", fontWeight: 600, letterSpacing: "0.08em", textTransform: "uppercase" }}>
+          {k.label}
+        </div>
+        {k.toggle && (
+          <div
+            role="group"
+            aria-label={k.toggle.label}
+            style={{
+              display: "flex",
+              border: "1px solid var(--border)",
+              borderRadius: 999,
+              padding: 2,
+              background: "var(--surface)",
+              flexShrink: 0,
+            }}
+          >
+            {k.toggle.options.map(option => {
+              const active = option.value === k.toggle.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => k.toggle.onChange(option.value)}
+                  aria-pressed={active}
+                  style={{
+                    border: "none",
+                    borderRadius: 999,
+                    background: active ? "var(--dark-blue)" : "transparent",
+                    color: active ? "#fff" : "var(--dark-gray)",
+                    fontSize: 10.5,
+                    fontFamily: "Montserrat",
+                    fontWeight: 700,
+                    padding: "3px 9px",
+                    cursor: "pointer",
+                    lineHeight: 1.2,
+                  }}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
       <div className="flex items-end justify-between mt-3">
         <div className="mono" style={{ fontSize: 52, lineHeight: 1, fontWeight: 500, color: "var(--dark-blue)", letterSpacing: "-0.02em" }}>
@@ -241,6 +283,7 @@ function Dashboard() {
   const [liveClusters, setLiveClusters] = useState(null)
   const [liveHealth, setLiveHealth] = useState(null)
   const [liveJobs, setLiveJobs] = useState(null)
+  const [ticketMetric, setTicketMetric] = useState('24h')
 
   const max = liveClusters ? Math.max(...liveClusters.map(c => c.count), 1) : 5
 
@@ -281,12 +324,38 @@ function Dashboard() {
     return () => clearInterval(id)
   }, [fetchAll])
 
+  const ticketKpi = liveStats
+    ? {
+        label: ticketMetric === '24h' ? "Tickets · Last 24h" : "Tickets · Total",
+        value: String(ticketMetric === '24h' ? liveStats.tickets_today : liveStats.total_tickets),
+        trend: ticketMetric === '24h' ? "Live" : "All time",
+        tone: ticketMetric === '24h' ? "up" : "neutral",
+        sub: ticketMetric === '24h' ? "rolling window" : "all tickets",
+      }
+    : {
+        label: ticketMetric === '24h' ? "Tickets · Last 24h" : "Tickets · Total",
+        value: "—",
+        trend: "—",
+        tone: "neutral",
+        sub: "loading…",
+      }
+
+  ticketKpi.toggle = {
+    label: "Ticket count range",
+    value: ticketMetric,
+    onChange: setTicketMetric,
+    options: [
+      { value: '24h', label: '24H' },
+      { value: 'total', label: 'Total' },
+    ],
+  }
+
   const kpis = liveStats ? [
-    { label: "Tickets · Last 24h",  value: String(liveStats.tickets_today),             trend: "Live",           tone: "up",      sub: "rolling window" },
+    ticketKpi,
     { label: "Dict Jobs · This Week", value: String(liveStats.dict_jobs_this_week),      trend: "Stable",         tone: "neutral", sub: "schema uploads"  },
     { label: "Students Flagged",    value: String(liveStats.students_flagged_this_week), trend: "Pending review", tone: "warn",    sub: "awaiting approval" },
   ] : [
-    { label: "Tickets · Last 24h",    value: "—", trend: "—", tone: "neutral", sub: "loading…" },
+    ticketKpi,
     { label: "Dict Jobs · This Week", value: "—", trend: "—", tone: "neutral", sub: "loading…" },
     { label: "Students Flagged",      value: "—", trend: "—", tone: "neutral", sub: "loading…" },
   ]
