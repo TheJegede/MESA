@@ -16,7 +16,8 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.database import (
-    get_db, init_db, seed_tickets_if_empty, SessionLocal,
+    get_db, init_db, normalize_unanswered_ticket_statuses, seed_tickets_if_empty, SessionLocal,
+    ticket_status_for_resolution,
     Ticket, TicketTag, TicketMessage, Cluster, DictJob, DistressFlag, EmailLog,
 )
 from backend.config import CLUSTER_THRESHOLD, GMAIL_USER, ADVISOR_EMAIL, UPLOADS_DIR, IT_TEAM_EMAIL
@@ -120,6 +121,7 @@ async def lifespan(app: FastAPI):
     db = SessionLocal()
     try:
         seed_tickets_if_empty(db)
+        normalize_unanswered_ticket_statuses(db)
         run_pattern_detection(db)
     finally:
         db.close()
@@ -137,6 +139,17 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ── Helpers ─────────────────────────────────────────────────────────────────
+
+def _serialize_message(m: TicketMessage) -> dict:
+    return {
+        "id": m.id,
+        "sender": m.sender,
+        "content": m.content,
+        "created_at": m.created_at.isoformat() if m.created_at else None,
+    }
 
 
 # ── Models ──────────────────────────────────────────────────────────────────
@@ -160,7 +173,7 @@ def create_ticket(payload: TicketCreate, db: Session = Depends(get_db)):
         severity=classification.get("severity", "medium"),
         auto_resolved=classification.get("auto_resolved", False),
         resolution=classification.get("resolution"),
-        status="ai_responded",
+        status=ticket_status_for_resolution(classification.get("resolution")),
         last_activity=now,
     )
     db.add(ticket)
@@ -223,7 +236,7 @@ def list_tickets(db: Session = Depends(get_db)):
             "severity": t.severity,
             "auto_resolved": t.auto_resolved,
             "resolution": t.resolution,
-            "status": t.status or "ai_responded",
+            "status": t.status or ticket_status_for_resolution(t.resolution),
             "created_at": t.created_at.isoformat() if t.created_at else None,
         }
         for t in tickets
@@ -292,7 +305,8 @@ def notify_it_team(cluster_id: int, db: Session = Depends(get_db)):
         error_msg=result.get("error"),
     )
     db.add(log)
-    cluster.it_notified = True
+    if result["success"]:
+        cluster.it_notified = True
     db.commit()
     return {"status": "notified", "success": result["success"]}
 
@@ -575,11 +589,14 @@ def get_ticket_messages(ticket_id: int, db: Session = Depends(get_db)):
     if not messages and ticket.resolution:
         return [{"id": 0, "sender": "ai", "content": ticket.resolution,
                  "created_at": ticket.created_at.isoformat() if ticket.created_at else None}]
-    return [
-        {"id": m.id, "sender": m.sender, "content": m.content,
-         "created_at": m.created_at.isoformat() if m.created_at else None}
-        for m in messages
-    ]
+    if not messages:
+        return [{
+            "id": 0,
+            "sender": "system",
+            "content": "MESA has received this ticket. No automated resolution is available yet; add a reply if you can provide more detail.",
+            "created_at": ticket.created_at.isoformat() if ticket.created_at else None,
+        }]
+    return [_serialize_message(m) for m in messages]
 
 
 # ── POST /tickets/{id}/messages ───────────────────────────────────────────────
@@ -695,9 +712,7 @@ def list_escalated_threads(db: Session = Depends(get_db)):
             msgs = [{"id": 0, "sender": "ai", "content": t.resolution,
                      "created_at": t.created_at.isoformat() if t.created_at else None}]
         else:
-            msgs = [{"id": m.id, "sender": m.sender, "content": m.content,
-                     "created_at": m.created_at.isoformat() if m.created_at else None}
-                    for m in messages]
+            msgs = [_serialize_message(m) for m in messages]
         result.append({
             "id": t.id,
             "text": t.text[:120],

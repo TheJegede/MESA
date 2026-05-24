@@ -108,6 +108,33 @@ def init_db():
     Base.metadata.create_all(bind=engine)
 
 
+def ticket_status_for_resolution(resolution: str | None) -> str:
+    return "ai_responded" if resolution else "open"
+
+
+def normalize_unanswered_ticket_statuses(db):
+    tickets = (
+        db.query(Ticket)
+        .filter((Ticket.status == "ai_responded") | (Ticket.status == None))
+        .all()
+    )
+    changed = False
+    for ticket in tickets:
+        if ticket.resolution:
+            if not ticket.status:
+                ticket.status = "ai_responded"
+                changed = True
+            continue
+
+        message_count = db.query(TicketMessage).filter_by(ticket_id=ticket.id).count()
+        if message_count == 0 and ticket.status != "open":
+            ticket.status = "open"
+            changed = True
+
+    if changed:
+        db.commit()
+
+
 def seed_tickets_if_empty(db):
     if db.query(Ticket).count() > 0:
         return
@@ -124,6 +151,7 @@ def seed_tickets_if_empty(db):
             severity=t.get("severity", "low"),
             auto_resolved=t.get("auto_resolved", False),
             resolution=t.get("resolution"),
+            status=ticket_status_for_resolution(t.get("resolution")),
         )
         db.add(ticket)
         db.flush()

@@ -227,7 +227,7 @@ export default function MyTickets() {
               <span style={{ fontFamily: 'Roboto Mono', fontSize: 12, color: '#81848A' }}>#{t.id}</span>
               <span style={{ background: '#09396C', color: '#fff', fontFamily: 'Montserrat', fontWeight: 600, fontSize: 10, padding: '2px 8px', borderRadius: 4 }}>{t.system_affected}</span>
               <span style={{ color: SEVERITY_COLORS[t.severity], fontFamily: 'Montserrat', fontWeight: 700, fontSize: 10 }}>{t.severity?.toUpperCase()}</span>
-              <StatusBadge status={t.status || 'ai_responded'} />
+              <StatusBadge status={t.status || 'open'} />
               <span style={{ marginLeft: 'auto', color: '#CFDCE9', fontSize: 12, transition: 'transform 0.15s', transform: isOpen ? 'rotate(180deg)' : 'none' }}>
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#81848A" strokeWidth="2"><path d="M6 9l6 6 6-6"/></svg>
               </span>

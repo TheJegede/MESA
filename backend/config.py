@@ -10,6 +10,10 @@ try:
     CLUSTER_THRESHOLD = int(os.getenv("CLUSTER_THRESHOLD", "5"))
 except ValueError:
     CLUSTER_THRESHOLD = 5
+try:
+    ESCALATION_NOTIFY_THRESHOLD = int(os.getenv("ESCALATION_NOTIFY_THRESHOLD", "2"))
+except ValueError:
+    ESCALATION_NOTIFY_THRESHOLD = 2
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 ADVISOR_EMAIL = os.getenv("ADVISOR_EMAIL", "advisor@mines.edu")
 IT_TEAM_EMAIL = os.getenv("IT_TEAM_EMAIL", "")

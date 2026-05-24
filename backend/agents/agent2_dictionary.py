@@ -26,7 +26,7 @@ Return ONLY a JSON array with this structure per field:
 Mark sensitivity=ferpa_protected for: grades, enrollment, student ID, DOB, SSN, financial aid."""
 
 
-def scan_for_ferpa(columns: list) -> list:
+def _scan_for_ferpa(columns: list) -> list:
     return [col for col in columns if FERPA_PATTERN.search(col)]
 
 
@@ -48,7 +48,7 @@ def scan_schema_for_ferpa(filepath: str) -> dict:
                     columns = list(first.keys())
     except Exception:
         return {"ferpa_flag": True, "sensitive_fields": []}
-    ferpa_fields = scan_for_ferpa(columns)
+    ferpa_fields = _scan_for_ferpa(columns)
     if ferpa_fields:
         return {"ferpa_flag": True, "sensitive_fields": ferpa_fields}
     return {"ferpa_flag": False}

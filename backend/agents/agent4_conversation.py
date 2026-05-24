@@ -8,6 +8,8 @@ from backend.services.rag_service import query_knowledge_base
 logger = logging.getLogger(__name__)
 genai.configure(api_key=GEMINI_API_KEY)
 
+MAX_HISTORY_TURNS = 8
+
 SYSTEM_PROMPT = """You are MESA Support, an IT help desk assistant for Colorado School of Mines.
 You assist students and faculty with IT support issues via a conversation thread.
 
@@ -36,7 +38,7 @@ def generate_thread_response(
     kb_context = "\n\n---\n\n".join(kb_chunks) if kb_chunks else "No relevant knowledge base articles found."
 
     history_lines = []
-    for msg in conversation_history[-8:]:
+    for msg in conversation_history[-MAX_HISTORY_TURNS:]:
         role = {"user": "USER", "ai": "MESA AI", "staff": "IT STAFF"}.get(msg["sender"], "UNKNOWN")
         history_lines.append(f"{role}: {msg['content']}")
     history_str = "\n".join(history_lines)

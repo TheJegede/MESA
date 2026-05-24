@@ -5,7 +5,7 @@ from backend.database import TicketTag, Cluster
 from backend.config import CLUSTER_THRESHOLD
 
 
-def run_pattern_detection(db: Session, threshold: int = None) -> list:
+def run_pattern_detection(db: Session, threshold: int | None = None) -> list:
     """
     Groups ticket_tags by (system, topic), updates cluster counts, flags threshold hits.
     Returns list of newly-triggered cluster dicts: [{system, topic, count}]

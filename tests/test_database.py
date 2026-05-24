@@ -2,8 +2,11 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from backend.database import (
-    Base, Ticket, TicketTag, Cluster, DictJob, DistressFlag, EmailLog
+    Base, Ticket, TicketTag, Cluster, DictJob, DistressFlag, EmailLog,
+    normalize_unanswered_ticket_statuses, ticket_status_for_resolution
 )
+import backend.services.scheduler as scheduler_service
+from backend.main import get_ticket_messages, notify_it_team
 
 
 @pytest.fixture
@@ -60,3 +63,143 @@ def test_cluster_defaults(db):
     assert result.agent2_triggered is False
     assert result.dict_eligible is False
     assert result.count == 0
+
+
+def test_ticket_status_for_resolution():
+    assert ticket_status_for_resolution("Try resetting your password.") == "ai_responded"
+    assert ticket_status_for_resolution(None) == "open"
+    assert ticket_status_for_resolution("") == "open"
+
+
+def test_normalize_unanswered_ticket_statuses_marks_empty_ai_response_open(db):
+    ticket = Ticket(
+        text="No answer was generated",
+        status="ai_responded",
+        resolution=None,
+        auto_resolved=False,
+    )
+    db.add(ticket)
+    db.commit()
+
+    normalize_unanswered_ticket_statuses(db)
+
+    db.refresh(ticket)
+    assert ticket.status == "open"
+
+
+def test_normalize_unanswered_ticket_statuses_keeps_answered_ticket_ai_responded(db):
+    ticket = Ticket(
+        text="Answer was generated",
+        status="ai_responded",
+        resolution="Follow these steps.",
+        auto_resolved=False,
+    )
+    db.add(ticket)
+    db.commit()
+
+    normalize_unanswered_ticket_statuses(db)
+
+    db.refresh(ticket)
+    assert ticket.status == "ai_responded"
+
+
+def test_get_ticket_messages_returns_system_placeholder_for_unanswered_ticket(db):
+    ticket = Ticket(text="No thread yet", status="open", resolution=None)
+    db.add(ticket)
+    db.commit()
+
+    messages = get_ticket_messages(ticket.id, db)
+
+    assert messages[0]["sender"] == "system"
+    assert "No automated resolution is available yet" in messages[0]["content"]
+
+
+def test_escalation_sweep_does_not_mark_cluster_notified_after_failed_email(monkeypatch):
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    Base.metadata.create_all(bind=engine)
+    Session = sessionmaker(bind=engine)
+
+    db = Session()
+    cluster = Cluster(topic="Authentication", system="Banner", count=2, threshold_hit=True, it_notified=False)
+    db.add(cluster)
+    db.flush()
+    for i in range(2):
+        ticket = Ticket(text=f"ticket {i}", status="escalated")
+        db.add(ticket)
+        db.flush()
+        db.add(TicketTag(ticket_id=ticket.id, topic="Authentication", system="Banner", error_type="login"))
+    db.commit()
+    db.close()
+
+    monkeypatch.setattr(scheduler_service, "SessionLocal", Session)
+    monkeypatch.setattr(scheduler_service, "IT_TEAM_EMAIL", "it@example.edu")
+    monkeypatch.setattr(scheduler_service, "ESCALATION_NOTIFY_THRESHOLD", 2)
+    monkeypatch.setattr(
+        scheduler_service,
+        "send_email",
+        lambda *args, **kwargs: {"success": False, "error": "SMTP unavailable"},
+    )
+
+    scheduler_service._escalation_notify_sweep()
+
+    db = Session()
+    refreshed = db.query(Cluster).one()
+    log = db.query(EmailLog).one()
+    assert refreshed.it_notified is False
+    assert log.success is False
+    assert log.error_msg == "SMTP unavailable"
+    db.close()
+
+
+def test_escalation_sweep_marks_cluster_notified_after_successful_email(monkeypatch):
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False})
+    Base.metadata.create_all(bind=engine)
+    Session = sessionmaker(bind=engine)
+
+    db = Session()
+    cluster = Cluster(topic="Authentication", system="Banner", count=2, threshold_hit=True, it_notified=False)
+    db.add(cluster)
+    db.flush()
+    for i in range(2):
+        ticket = Ticket(text=f"ticket {i}", status="escalated")
+        db.add(ticket)
+        db.flush()
+        db.add(TicketTag(ticket_id=ticket.id, topic="Authentication", system="Banner", error_type="login"))
+    db.commit()
+    db.close()
+
+    monkeypatch.setattr(scheduler_service, "SessionLocal", Session)
+    monkeypatch.setattr(scheduler_service, "IT_TEAM_EMAIL", "it@example.edu")
+    monkeypatch.setattr(scheduler_service, "ESCALATION_NOTIFY_THRESHOLD", 2)
+    monkeypatch.setattr(
+        scheduler_service,
+        "send_email",
+        lambda *args, **kwargs: {"success": True, "error": None},
+    )
+
+    scheduler_service._escalation_notify_sweep()
+
+    db = Session()
+    refreshed = db.query(Cluster).one()
+    log = db.query(EmailLog).one()
+    assert refreshed.it_notified is True
+    assert log.success is True
+    db.close()
+
+
+def test_manual_notify_does_not_mark_cluster_notified_after_failed_email(db, monkeypatch):
+    cluster = Cluster(topic="Authentication", system="Banner", count=5, threshold_hit=True, it_notified=False)
+    db.add(cluster)
+    db.commit()
+
+    monkeypatch.setattr("backend.main.IT_TEAM_EMAIL", "it@example.edu")
+    monkeypatch.setattr(
+        "backend.main.send_email",
+        lambda *args, **kwargs: {"success": False, "error": "SMTP unavailable"},
+    )
+
+    result = notify_it_team(cluster.id, db)
+
+    db.refresh(cluster)
+    assert result == {"status": "notified", "success": False}
+    assert cluster.it_notified is False

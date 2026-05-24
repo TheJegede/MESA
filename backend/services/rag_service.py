@@ -50,8 +50,10 @@ def load_knowledge_base():
         try:
             with open(INDEX_PATH, encoding="utf-8") as f:
                 _index = json.load(f)
-            logger.info("RAG: Loaded %d chunks from index cache.", len(_index))
-            return
+            if _index:
+                logger.info("RAG: Loaded %d chunks from index cache.", len(_index))
+                return
+            logger.warning("RAG: Index cache empty, rebuilding.")
         except Exception as e:
             logger.warning("RAG: Index cache corrupt, rebuilding. %s", e)
 

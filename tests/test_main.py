@@ -29,7 +29,10 @@ def test_get_dashboard_stats(client):
     resp = client.get("/dashboard-stats")
     assert resp.status_code == 200
     data = resp.json()
-    assert "auto_resolution_rate" in data
+    assert "tickets_today" in data
+    assert "total_tickets" in data
+    assert "status_breakdown" in data
+    assert "top_clusters" in data
 
 
 def test_post_ticket_mock_gemini(client):
