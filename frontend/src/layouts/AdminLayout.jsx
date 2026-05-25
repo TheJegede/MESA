@@ -83,6 +83,42 @@ function Sidebar({ currentRoute, onNavigate }) {
               label="Escalated Threads" />
           </nav>
           <div style={{ margin: "16px 12px 0", borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 12 }}>
+            <button
+              onClick={() => {
+                if (window.confirm("Reset entire database to demo state?")) {
+                  fetch("http://localhost:8010/demo/reset", { method: "POST" })
+                    .then(res => res.json())
+                    .then(data => {
+                      alert("Database Reset Successful");
+                      window.location.reload();
+                    })
+                    .catch(err => alert("Reset failed: " + err));
+                }
+              }}
+              style={{
+                width: "100%",
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                padding: "7px 12px",
+                borderRadius: 8,
+                color: "var(--golden-tech)",
+                background: "rgba(182, 148, 84, 0.1)",
+                fontSize: 12,
+                fontWeight: 600,
+                border: "1px solid rgba(182, 148, 84, 0.2)",
+                cursor: "pointer",
+                transition: "all 0.15s",
+                marginBottom: 8
+              }}
+              onMouseEnter={(e) => e.currentTarget.style.background = "rgba(182, 148, 84, 0.2)"}
+              onMouseLeave={(e) => e.currentTarget.style.background = "rgba(182, 148, 84, 0.1)"}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M3 12a9 9 0 109-9M3 12h9m-9 0l3-3m-3 3l3 3"/>
+              </svg>
+              Reset Demo State
+            </button>
             <a
               href="/"
               style={{

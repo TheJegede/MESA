@@ -19,10 +19,11 @@ from backend.database import (
     get_db, init_db, normalize_unanswered_ticket_statuses, seed_tickets_if_empty, SessionLocal,
     ticket_status_for_resolution,
     Ticket, TicketTag, TicketMessage, Cluster, DictJob, DistressFlag, EmailLog,
+    SchemaBaseline
 )
 from backend.config import CLUSTER_THRESHOLD, GMAIL_USER, ADVISOR_EMAIL, UPLOADS_DIR, IT_TEAM_EMAIL
 from backend.agents.agent1_helpdesk import classify_ticket
-from backend.agents.agent2_dictionary import generate_dictionary_confirmed, scan_schema_for_ferpa
+from backend.agents.agent2_dictionary import generate_dictionary_confirmed, scan_schema_for_ferpa, get_schema_columns
 from backend.agents.agent4_conversation import generate_thread_response
 from backend.services.rag_service import load_knowledge_base
 from backend.services.email_service import send_email, send_with_attachment
@@ -36,7 +37,7 @@ def _validate_institutional_email(email: str) -> bool:
     return email.strip().lower().endswith(f"@{INSTITUTIONAL_DOMAIN}")
 
 
-def _process_dict_job(job_id: int, file_path: str, faculty_email: str, filename: str):
+def _process_dict_job(job_id: int, file_path: str, faculty_email: str, filename: str, system: str):
     db = SessionLocal()
     job = None
     try:
@@ -45,7 +46,11 @@ def _process_dict_job(job_id: int, file_path: str, faculty_email: str, filename:
             job.status = "processing"
             db.commit()
 
-        result = generate_dictionary_confirmed(file_path)
+        # Fetch baseline
+        baseline = db.query(SchemaBaseline).filter_by(system=system).first()
+        baseline_cols = json.loads(baseline.schema_json) if baseline else None
+
+        result = generate_dictionary_confirmed(file_path, baseline_columns=baseline_cols)
 
         if result.get("error"):
             if job:
@@ -66,7 +71,55 @@ def _process_dict_job(job_id: int, file_path: str, faculty_email: str, filename:
             job.status = "completed"
             job.artifact_path = result["artifact_path"]
             job.entry_count = result["entry_count"]
+            job.change_note = result.get("change_note")
             db.commit()
+
+            # CLOSE THE LOOP: Auto-resolve tickets in the triggering cluster
+            if job.triggered_by_cluster and job.triggered_by_cluster.startswith("Cluster #"):
+                try:
+                    cluster_id = int(job.triggered_by_cluster.replace("Cluster #", ""))
+                    cluster = db.query(Cluster).filter_by(id=cluster_id).first()
+                    if cluster:
+                        # Find all tickets linked to this cluster's system/topic
+                        tickets = (
+                            db.query(Ticket)
+                            .join(TicketTag, Ticket.id == TicketTag.ticket_id)
+                            .filter(TicketTag.system == cluster.system, TicketTag.topic == cluster.topic)
+                            .all()
+                        )
+                        for t in tickets:
+                            if t.status not in ("resolved", "auto_resolved"):
+                                t.status = "auto_resolved"
+                                closure_msg = TicketMessage(
+                                    ticket_id=t.id,
+                                    sender="system",
+                                    content=(
+                                        f"AUTO-RESOLVED: A system schema audit for {cluster.system} has been completed. "
+                                        "The diagnostic gap identified by this ticket has been healed via Agent 2 analysis."
+                                    )
+                                )
+                                db.add(closure_msg)
+                        
+                        db.commit() # ENSURE REAL-TIME UPDATE
+                        
+                        # Reset cluster so it can be re-triggered if new issues arise
+                        cluster.agent2_triggered = False
+                        cluster.threshold_hit = False
+                        db.commit()
+                except Exception as loop_err:
+                    print(f"Error closing self-healing loop: {loop_err}")
+
+        # Priority Alert: Breaking Change detected
+        if result.get("has_removals") and IT_TEAM_EMAIL:
+            send_email(
+                to_addr=IT_TEAM_EMAIL,
+                subject=f"PRIORITY ALERT: Breaking Schema Change in {system}",
+                body=(
+                    f"Agent 2 has detected one or more REMOVED columns in the '{system}' schema upload.\n\n"
+                    f"Impact Analysis:\n{result.get('change_note')}\n\n"
+                    f"View detailed report in MESA Admin: http://localhost:5173/admin/artifacts"
+                )
+            )
 
         email_result = send_with_attachment(
             to_addr=faculty_email,
@@ -274,6 +327,39 @@ def list_clusters(db: Session = Depends(get_db)):
     ]
 
 
+# ── GET /clusters/{id}/tickets ────────────────────────────────────────────────
+
+@app.get("/clusters/{cluster_id}/tickets")
+def get_cluster_tickets(cluster_id: int, db: Session = Depends(get_db)):
+    cluster = db.query(Cluster).filter_by(id=cluster_id).first()
+    if not cluster:
+        raise HTTPException(status_code=404, detail="Cluster not found")
+
+    tickets = (
+        db.query(Ticket)
+        .join(TicketTag, Ticket.id == TicketTag.ticket_id)
+        .filter(
+            TicketTag.system == cluster.system,
+            TicketTag.topic == cluster.topic
+        )
+        .order_by(Ticket.created_at.desc())
+        .all()
+    )
+
+    return [
+        {
+            "id": t.id,
+            "text": t.text[:200],
+            "category": t.category,
+            "system_affected": t.system_affected,
+            "severity": t.severity,
+            "status": t.status or ticket_status_for_resolution(t.resolution),
+            "created_at": _utc_iso(t.created_at),
+        }
+        for t in tickets
+    ]
+
+
 # ── POST /clusters/trigger ────────────────────────────────────────────────────
 
 @app.post("/clusters/trigger")
@@ -366,6 +452,7 @@ def generate_dict(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     faculty_email: str = Form(...),
+    system: str = Form("unknown"),
     confirmed: bool = False,
     triggered_by_cluster: str = "",
     db: Session = Depends(get_db),
@@ -389,8 +476,33 @@ def generate_dict(
             os.unlink(upload_path)
             return {"ferpa_flag": True, "sensitive_fields": scan["sensitive_fields"]}
 
+    # Robust System Inference
+    final_system = system.lower() if system and system.lower() != "unknown" else "unknown"
+    
+    if triggered_by_cluster and final_system == "unknown":
+        if triggered_by_cluster.startswith("Cluster #"):
+            try:
+                c_id = int(triggered_by_cluster.replace("Cluster #", ""))
+                cluster = db.query(Cluster).filter_by(id=c_id).first()
+                if cluster:
+                    final_system = cluster.system.lower()
+            except: pass
+        else:
+            # Fallback to topic search
+            cluster = db.query(Cluster).filter_by(topic=triggered_by_cluster).first()
+            if cluster:
+                final_system = cluster.system.lower()
+
+    if final_system == "unknown":
+        base = os.path.basename(file.filename).lower()
+        for s in ["edify", "banner", "canvas", "workday", "onedrive"]:
+            if s in base:
+                final_system = s
+                break
+
     job = DictJob(
         filename=file.filename,
+        system=final_system.upper(),
         status="queued",
         triggered_by_cluster=triggered_by_cluster,
         faculty_email=faculty_email,
@@ -418,7 +530,7 @@ def generate_dict(
     db.add(conf_log)
     db.commit()
 
-    background_tasks.add_task(_process_dict_job, job.id, upload_path, faculty_email, file.filename)
+    background_tasks.add_task(_process_dict_job, job.id, upload_path, faculty_email, file.filename, system)
 
     return {
         "job_id": job.id,
@@ -436,8 +548,10 @@ def list_dict_jobs(db: Session = Depends(get_db)):
         {
             "id": j.id,
             "filename": j.filename,
+            "system": j.system,
             "status": j.status,
             "artifact_path": j.artifact_path,
+            "change_note": j.change_note,
             "triggered_by_cluster": j.triggered_by_cluster,
             "faculty_email": j.faculty_email,
             "entry_count": j.entry_count,
@@ -445,6 +559,32 @@ def list_dict_jobs(db: Session = Depends(get_db)):
         }
         for j in jobs
     ]
+
+
+@app.post("/dict-jobs/{job_id}/set-baseline")
+def set_baseline(job_id: int, db: Session = Depends(get_db)):
+    job = db.query(DictJob).filter_by(id=job_id).first()
+    if not job or job.status != "completed":
+        raise HTTPException(status_code=400, detail="Job not found or not completed")
+    
+    if not job.artifact_path or not os.path.exists(job.artifact_path):
+        raise HTTPException(status_code=404, detail="Artifact missing")
+    
+    cols = []
+    with open(job.artifact_path, encoding="utf-8") as f:
+        for row in csv.DictReader(f):
+            cols.append(row["field_name"])
+    
+    baseline = db.query(SchemaBaseline).filter_by(system=job.system).first()
+    if baseline:
+        baseline.schema_json = json.dumps(cols)
+        baseline.created_at = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    else:
+        baseline = SchemaBaseline(system=job.system, schema_json=json.dumps(cols))
+        db.add(baseline)
+    
+    db.commit()
+    return {"status": "success", "system": job.system, "columns": len(cols)}
 
 
 # ── GET /dict-jobs/{id}/entries ──────────────────────────────────────────────
@@ -500,7 +640,7 @@ def resend_dict_job(job_id: int, db: Session = Depends(get_db)):
         to_addr=job.faculty_email,
         subject=f"MESA: Data dictionary (resent) — {job.filename}",
         body=(
-            f"Your data dictionary for '{job.filename}' has been resent by an administrator.\n\n"
+            f"Your data dictionary for '{job.filename}' has been sent by an administrator.\n\n"
             f"{job.entry_count or '—'} fields documented.\n\n"
             f"Generated using local inference only. No schema data was sent to external APIs."
         ),
@@ -779,3 +919,64 @@ def system_health():
         "scheduler": "running" if scheduler.running else "stopped",
         "timestamp": _utc_iso(datetime.datetime.now(datetime.timezone.utc)),
     }
+
+
+# ── DEMO / RESET ─────────────────────────────────────────────────────────────
+
+@app.post("/demo/reset")
+def reset_database(db: Session = Depends(get_db)):
+    from backend.database import Base, engine
+    # Drop and recreate all tables
+    Base.metadata.drop_all(bind=engine)
+    Base.metadata.create_all(bind=engine)
+    
+    # Close old session, open new one for seeding
+    db.close()
+    new_db = SessionLocal()
+    try:
+        seed_tickets_if_empty(new_db)
+        normalize_unanswered_ticket_statuses(new_db)
+        run_pattern_detection(new_db)
+    finally:
+        new_db.close()
+    
+    return {"status": "reset_complete"}
+
+
+def seed_tickets_if_empty(db: Session):
+    if db.query(Ticket).first():
+        return
+
+    # Seed Edify Baseline for Demo
+    edify_baseline_cols = ["student_id", "first_name", "last_name", "email", "gpa", "major", "enrollment_status", "finance_hold"]
+    baseline = SchemaBaseline(system="Edify", schema_json=json.dumps(edify_baseline_cols))
+    db.add(baseline)
+
+    seed_path = os.path.join(os.path.dirname(__file__), "mock_data", "tickets_seed.json")
+    if not os.path.exists(seed_path):
+        return
+
+    with open(seed_path, encoding="utf-8") as f:
+        data = json.load(f)
+
+    for t in data:
+        now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+        ticket = Ticket(
+            text=t["text"],
+            category=t.get("category", "other"),
+            system_affected=t.get("system_affected", "other"),
+            severity=t.get("severity", "medium"),
+            status=ticket_status_for_resolution(None),
+            last_activity=now,
+        )
+        db.add(ticket)
+        db.flush()
+
+        tag = TicketTag(
+            ticket_id=ticket.id,
+            topic=t.get("topic", "unclassified"),
+            system=t.get("system_affected", "other"),
+            error_type=t.get("error_type", "unknown"),
+        )
+        db.add(tag)
+    db.commit()

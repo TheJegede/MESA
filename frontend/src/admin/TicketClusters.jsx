@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react'
-import { getClusters, getTickets, getConfig } from '../api/mesa'
+import { getClusters, getTickets, getConfig, getClusterTickets } from '../api/mesa'
 
 const TC_FILTERS = ["All", "Edify", "Banner", "Canvas", "OneDrive", "Workday"];
 
@@ -63,64 +63,6 @@ function SeverityPill({ s }) {
   );
 }
 
-// ---------- cluster row ----------
-function ClusterTableRow({ c, threshold }) {
-  const [hover, setHover] = useState(false);
-  const aboveThreshold = c.count >= threshold;
-  const barColor = aboveThreshold ? "var(--golden-tech)" : "var(--light-blue)";
-  const pct = Math.min(100, Math.round((c.count / c.max) * 100));
-
-  return (
-    <div
-      onMouseEnter={() => setHover(true)}
-      onMouseLeave={() => setHover(false)}
-      className="grid items-center gap-4 px-5 py-3.5"
-      style={{
-        gridTemplateColumns: "44px 110px 1fr 80px 220px 150px",
-        background: hover ? "var(--pale-blue)" : "transparent",
-        borderTop: "1px solid var(--border)",
-        transition: "background 0.15s",
-      }}
-    >
-      <div className="mono" style={{ fontSize: 12, color: "var(--silver)", fontWeight: 500 }}>#{c.rank}</div>
-      <div><SystemPill name={c.system} /></div>
-      <div style={{ fontSize: 13.5, color: "var(--dark-blue)" }}>{c.topic}</div>
-      <div className="mono" style={{ fontSize: 15, color: "var(--dark-blue)", fontWeight: 600 }}>
-        {c.count}<span style={{ color: "var(--silver)", fontSize: 11, fontWeight: 400 }}> /{c.max}</span>
-      </div>
-      <div style={{ position: "relative" }}>
-        <div style={{ height: 8, background: "var(--pale-blue)", borderRadius: 999, overflow: "hidden" }}>
-          <div style={{ height: "100%", width: pct + "%", background: barColor, borderRadius: 999, transition: "width 0.3s" }}></div>
-        </div>
-        <div style={{
-          position: "absolute",
-          left: `${Math.min(98, (threshold / c.max) * 100)}%`,
-          top: -3, bottom: -3, width: 2, background: "var(--colorado-red)", opacity: 0.6,
-        }} title="Threshold"></div>
-      </div>
-      <div>
-        {aboveThreshold ? (
-          <span style={{
-            background: "transparent", border: "1.5px solid var(--colorado-red)",
-            color: "var(--colorado-red)", fontFamily: "Montserrat", fontWeight: 700,
-            fontSize: 10.5, letterSpacing: "0.06em",
-            padding: "3px 10px", borderRadius: 999, textTransform: "uppercase",
-            whiteSpace: "nowrap",
-          }}>Recurring</span>
-        ) : (
-          <span style={{
-            background: "rgba(135,158,195,0.18)", color: "var(--dark-gray)",
-            fontFamily: "Montserrat", fontWeight: 700,
-            fontSize: 10.5, letterSpacing: "0.06em",
-            padding: "3px 10px", borderRadius: 999, textTransform: "uppercase",
-            border: "1px solid var(--border)", whiteSpace: "nowrap",
-          }}>Emerging</span>
-        )}
-      </div>
-    </div>
-  );
-}
-
 const TICKET_STATUS_STYLE = {
   ai_responded:  { label: "AI Responded",  bg: "rgba(128,195,66,0.16)",   color: "#3F7A1A", border: "rgba(128,195,66,0.4)"   },
   resolved:      { label: "Resolved",      bg: "rgba(9,57,108,0.12)",     color: "#09396C", border: "rgba(9,57,108,0.3)"     },
@@ -128,6 +70,136 @@ const TICKET_STATUS_STYLE = {
   escalated:     { label: "Escalated",     bg: "rgba(241,185,26,0.18)",   color: "#7A5B00", border: "rgba(241,185,26,0.5)"   },
   open:          { label: "Open",          bg: "rgba(135,158,195,0.18)",  color: "#4A5568", border: "rgba(135,158,195,0.5)"  },
 };
+
+function ClusterDrillDown({ clusterId }) {
+  const [tickets, setTickets] = useState(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    getClusterTickets(clusterId)
+      .then(setTickets)
+      .finally(() => setLoading(false));
+  }, [clusterId]);
+
+  if (loading) return <div style={{ padding: "16px 50px", color: "var(--silver)", fontSize: 12 }}>Loading constituent tickets...</div>;
+  if (!tickets || tickets.length === 0) return <div style={{ padding: "16px 50px", color: "var(--silver)", fontSize: 12 }}>No tickets found for this cluster.</div>;
+
+  return (
+    <div style={{ background: "var(--surface)", borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)" }}>
+      <div style={{ padding: "12px 20px 8px 50px", fontSize: 11, color: "var(--silver)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>
+        Constituent Tickets
+      </div>
+      {tickets.map(t => (
+        <div key={t.id} className="grid items-start gap-4 px-5 py-3" style={{ gridTemplateColumns: "80px 1fr 140px 110px 160px 140px", paddingLeft: 50 }}>
+          <div className="mono" style={{ fontSize: 12, color: "var(--silver)", paddingTop: 2 }}>#{String(t.id).padStart(3, "0")}</div>
+          <div style={{ fontSize: 13, color: "var(--dark-blue)", lineHeight: 1.4, paddingRight: 20 }}>
+            {t.text}
+          </div>
+          <div style={{ fontSize: 12, color: "var(--silver)", paddingTop: 2 }}>{t.category}</div>
+          <div style={{ paddingTop: 2 }}><SeverityPill s={t.severity} /></div>
+          <div style={{ paddingTop: 2 }}>
+            <span style={{
+              background: (TICKET_STATUS_STYLE[t.status] || TICKET_STATUS_STYLE.open).bg,
+              color: (TICKET_STATUS_STYLE[t.status] || TICKET_STATUS_STYLE.open).color,
+              fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 999,
+            }}>{(TICKET_STATUS_STYLE[t.status] || TICKET_STATUS_STYLE.open).label}</span>
+          </div>
+          <div className="mono" style={{ fontSize: 11, color: "var(--silver)", paddingTop: 4 }}>
+            {t.created_at ? new Date(t.created_at).toLocaleDateString() : "-"}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ---------- cluster row ----------
+function ClusterTableRow({ c, threshold, isExpanded, onToggle }) {
+  const [hover, setHover] = useState(false);
+  const aboveThreshold = c.count >= threshold;
+  
+  // State-based styling
+  const stateConfig = {
+    active: {
+      bar: aboveThreshold ? "var(--golden-tech)" : "var(--light-blue)",
+      badge: aboveThreshold ? "Recurring" : "Emerging",
+      badgeColor: aboveThreshold ? "var(--colorado-red)" : "var(--dark-gray)",
+      rowBg: "transparent"
+    },
+    healed: {
+      bar: "var(--mines-green)",
+      badge: "Healed",
+      badgeColor: "var(--mines-green)",
+      rowBg: "rgba(128,195,66,0.05)"
+    },
+    relapsed: {
+      bar: "#6B46C1", 
+      badge: "Relapsed",
+      badgeColor: "#6B46C1",
+      rowBg: "rgba(107,70,193,0.05)"
+    }
+  }[c.state] || { bar: "var(--light-blue)", badge: "Active", badgeColor: "var(--dark-gray)", rowBg: "transparent" };
+
+  const pct = Math.min(100, Math.round((c.count / c.max) * 100));
+
+  return (
+    <>
+      <div
+        onMouseEnter={() => setHover(true)}
+        onMouseLeave={() => setHover(false)}
+        onClick={onToggle}
+        className="grid items-center gap-4 px-5 py-3.5"
+        style={{
+          gridTemplateColumns: "44px 110px 1fr 80px 220px 150px",
+          background: isExpanded ? "var(--pale-blue)" : (hover ? "rgba(135,158,195,0.08)" : stateConfig.rowBg),
+          borderTop: "1px solid var(--border)",
+          transition: "background 0.15s",
+          cursor: "pointer",
+        }}
+      >
+        <div className="flex items-center gap-2">
+          <span style={{ fontSize: 10, color: "var(--silver)", transform: isExpanded ? "rotate(90deg)" : "none", transition: "transform 0.2s" }}>{">"}</span>
+          <div className="mono" style={{ fontSize: 12, color: "var(--silver)", fontWeight: 500 }}>#{c.rank}</div>
+        </div>
+        <div><SystemPill name={c.system} /></div>
+        <div style={{ fontSize: 13.5, color: "var(--dark-blue)", fontWeight: isExpanded ? 600 : 400 }}>
+          {c.topic}
+          {c.state === "healed" && c.healed_at && (
+            <span style={{ fontSize: 10, color: "var(--mines-green)", marginLeft: 8, fontWeight: 500 }}>
+              (Healed {new Date(c.healed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})
+            </span>
+          )}
+        </div>
+        <div className="mono" style={{ fontSize: 15, color: "var(--dark-blue)", fontWeight: 600 }}>
+          {c.count}<span style={{ color: "var(--silver)", fontSize: 11, fontWeight: 400 }}> /{c.max}</span>
+        </div>
+        <div style={{ position: "relative" }}>
+          <div style={{ height: 8, background: "var(--pale-blue)", borderRadius: 999, overflow: "hidden" }}>
+            <div style={{ height: "100%", width: pct + "%", background: stateConfig.bar, borderRadius: 999, transition: "width 0.3s" }}></div>
+          </div>
+          {c.state === "active" && (
+            <div style={{
+              position: "absolute",
+              left: `${Math.min(98, (threshold / c.max) * 100)}%`,
+              top: -3, bottom: -3, width: 2, background: "var(--colorado-red)", opacity: 0.6,
+            }} title="Threshold"></div>
+          )}
+        </div>
+        <div>
+          <span style={{
+            background: "transparent", border: `1.5px solid ${stateConfig.badgeColor}`,
+            color: stateConfig.badgeColor, fontFamily: "Montserrat", fontWeight: 700,
+            fontSize: 10.5, letterSpacing: "0.06em",
+            padding: "3px 10px", borderRadius: 999, textTransform: "uppercase",
+            whiteSpace: "nowrap",
+          }}>{stateConfig.badge}</span>
+        </div>
+      </div>
+      {isExpanded && <ClusterDrillDown clusterId={c.id} />}
+    </>
+  );
+}
 
 function TicketRow({ t, idx }) {
   const [hover, setHover] = useState(false);
@@ -191,15 +263,26 @@ function TicketClusters() {
   const [page, setPage] = useState(1);
   const [clusters, setClusters] = useState(null);
   const [tickets, setTickets] = useState(null);
+  const [expandedClusterId, setExpandedClusterId] = useState(null);
 
   const load = useCallback(async () => {
     try {
       const [c, t] = await Promise.all([getClusters(), getTickets()])
-      setClusters(c.map((cl, i) => ({ ...cl, rank: i + 1, max: Math.max(...c.map(x => x.count), 1) })))
+      // Split by state
+      const activeClusters = c.filter(x => x.state !== "healed");
+      const healedClusters = c.filter(x => x.state === "healed");
+      
+      const maxVal = Math.max(...c.map(x => x.count), 1);
+      
+      setClusters({
+        active: activeClusters.map((cl, i) => ({ ...cl, rank: i + 1, max: maxVal })),
+        healed: healedClusters.map((cl, i) => ({ ...cl, rank: activeClusters.length + i + 1, max: maxVal }))
+      })
+
       setTickets(t.map(tk => ({
         ...tk,
         system: tk.system_affected || tk.system || "Unknown",
-        submitted: tk.created_at ? new Date(tk.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }) : "—",
+        submitted: tk.created_at ? new Date(tk.created_at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }) : "-",
       })))
     } catch {}
   }, [])
@@ -222,8 +305,11 @@ function TicketClusters() {
   const totalPages = filtered ? Math.ceil(filtered.length / PAGE_SIZE) : 0;
   const paginated = filtered ? filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE) : [];
 
-  const aboveCount = clusters ? clusters.filter((c) => c.count >= threshold).length : null;
-  const autoResolvedPct = tickets
+  // Robustly handle clusters state to prevent HMR crashes if it's still an array from old code
+  const safeClusters = clusters && !Array.isArray(clusters) ? clusters : { active: Array.isArray(clusters) ? clusters : [], healed: [] };
+
+  const aboveCount = safeClusters.active.filter((c) => c.count >= threshold).length;
+  const autoResolvedPct = tickets && tickets.length > 0
     ? Math.round(tickets.filter(t => t.auto_resolved).length / tickets.length * 100)
     : null;
 
@@ -241,9 +327,9 @@ function TicketClusters() {
           </p>
         </div>
         <div className="flex items-center gap-2.5">
-          <StatChip label="Total Tickets"   value={tickets ? tickets.length : "—"}                          tone="primary" />
-          <StatChip label="Above Threshold" value={aboveCount !== null ? `${aboveCount} clusters` : "—"}   tone="warn" />
-          <StatChip label="Auto-Resolved"   value={autoResolvedPct !== null ? `${autoResolvedPct}%` : "—"} tone="success" />
+          <StatChip label="Total Tickets"   value={tickets ? tickets.length : "-"}                          tone="primary" />
+          <StatChip label="Above Threshold" value={clusters ? `${aboveCount} clusters` : "-"}   tone="warn" />
+          <StatChip label="Auto-Resolved"   value={autoResolvedPct !== null ? `${autoResolvedPct}%` : "-"} tone="success" />
         </div>
       </div>
 
@@ -262,7 +348,7 @@ function TicketClusters() {
               Cluster Analytics
             </h3>
             <div style={{ fontSize: 11.5, color: "var(--silver)", marginTop: 2 }}>
-              All cluster topics · ranked by volume
+              Active crises & historical resolutions · Slide down to heal
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -287,8 +373,39 @@ function TicketClusters() {
         />
         <div>
           {clusters === null
-            ? <div style={{ padding: "28px", textAlign: "center", color: "var(--silver)", fontSize: 13 }}>Loading clusters…</div>
-            : clusters.map((c) => <ClusterTableRow key={c.id} c={c} threshold={threshold} />)
+            ? <div style={{ padding: "28px", textAlign: "center", color: "var(--silver)", fontSize: 13 }}>Loading clusters...</div>
+            : (
+              <>
+                {/* Active Section */}
+                <div style={{ padding: "10px 20px", background: "rgba(33,49,77,0.02)", fontSize: 11, fontWeight: 700, color: "var(--silver)", textTransform: "uppercase" }}>Active Crises & Emerging Patterns</div>
+                {safeClusters.active.length === 0 && <div style={{ padding: "20px 50px", fontSize: 13, color: "var(--silver)" }}>No active crises detected. All systems stable.</div>}
+                {safeClusters.active.map((c) => (
+                  <ClusterTableRow
+                    key={c.id}
+                    c={c}
+                    threshold={threshold}
+                    isExpanded={expandedClusterId === c.id}
+                    onToggle={() => setExpandedClusterId(expandedClusterId === c.id ? null : c.id)}
+                  />
+                ))}
+
+                {/* Healed Section */}
+                {safeClusters.healed.length > 0 && (
+                  <>
+                    <div style={{ padding: "20px 20px 10px", background: "rgba(33,49,77,0.02)", fontSize: 11, fontWeight: 700, color: "var(--mines-green)", textTransform: "uppercase", borderTop: "1px solid var(--border)" }}>Recently Healed Systems (Last 24h)</div>
+                    {safeClusters.healed.map((c) => (
+                      <ClusterTableRow
+                        key={c.id}
+                        c={c}
+                        threshold={threshold}
+                        isExpanded={expandedClusterId === c.id}
+                        onToggle={() => setExpandedClusterId(expandedClusterId === c.id ? null : c.id)}
+                      />
+                    ))}
+                  </>
+                )}
+              </>
+            )
           }
         </div>
         <div className="px-5 py-3 flex items-center justify-between" style={{ borderTop: "1px solid var(--border)", background: "var(--surface)" }}>
@@ -297,7 +414,7 @@ function TicketClusters() {
             Red marker indicates current threshold ({threshold} tickets)
           </div>
           <div style={{ fontSize: 11.5, color: "var(--dark-gray)" }}>
-            APScheduler sweep · 60s interval
+            APScheduler sweep | 60s interval
           </div>
         </div>
       </section>
@@ -348,7 +465,7 @@ function TicketClusters() {
         <div>
           {tickets === null ? (
             <div style={{ padding: "40px 24px", textAlign: "center", color: "var(--silver)", fontSize: 13 }}>
-              Loading tickets…
+              Loading tickets...
             </div>
           ) : paginated.length === 0 ? (
             <div style={{ padding: "40px 24px", textAlign: "center", color: "var(--silver)", fontSize: 13 }}>
@@ -360,7 +477,7 @@ function TicketClusters() {
         </div>
         <div className="px-5 py-3 flex items-center justify-between" style={{ borderTop: "1px solid var(--border)", background: "var(--surface)" }}>
           <div style={{ fontSize: 11.5, color: "var(--silver)" }}>
-            Showing <span className="mono" style={{ color: "var(--dark-gray)" }}>{!filtered || filtered.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}–{Math.min(page * PAGE_SIZE, filtered?.length ?? 0)}</span> of <span className="mono" style={{ color: "var(--dark-gray)" }}>{filtered?.length ?? 0}</span> tickets
+            Showing <span className="mono" style={{ color: "var(--dark-gray)" }}>{!filtered || filtered.length === 0 ? 0 : (page - 1) * PAGE_SIZE + 1}-{Math.min(page * PAGE_SIZE, filtered?.length ?? 0)}</span> of <span className="mono" style={{ color: "var(--dark-gray)" }}>{filtered?.length ?? 0}</span> tickets
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -373,7 +490,7 @@ function TicketClusters() {
                 padding: "5px 12px", borderRadius: 6,
                 cursor: page === 1 ? "default" : "pointer",
                 opacity: page === 1 ? 0.5 : 1,
-              }}>← Prev</button>
+              }}>Prev</button>
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page >= totalPages}
@@ -384,7 +501,7 @@ function TicketClusters() {
                 padding: "5px 12px", borderRadius: 6,
                 cursor: page >= totalPages ? "default" : "pointer",
                 opacity: page >= totalPages ? 0.5 : 1,
-              }}>Next →</button>
+              }}>Next</button>
           </div>
         </div>
       </section>

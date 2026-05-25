@@ -31,11 +31,14 @@ export async function triggerAgent2(clusterId) {
   )
 }
 
+export async function getClusterTickets(clusterId) {
+  return _json(await fetch(`${BASE}/clusters/${clusterId}/tickets`), `GET /clusters/${clusterId}/tickets`)
+}
+
 export async function getDashboardStats() {
   return _json(await fetch(`${BASE}/dashboard-stats`), 'GET /dashboard-stats')
 }
 
-// uploadSchema returns r.json() directly — caller handles ferpa_flag, detail, and success cases
 export async function uploadSchema(file, confirmed = false, triggeredByCluster = '', facultyEmail = '') {
   const form = new FormData()
   form.append('file', file)
@@ -61,6 +64,13 @@ export async function resendDictJob(id) {
   return _json(
     await fetch(`${BASE}/dict-jobs/${id}/resend`, { method: 'POST' }),
     `POST /dict-jobs/${id}/resend`
+  )
+}
+
+export async function setBaseline(jobId) {
+  return _json(
+    await fetch(`${BASE}/dict-jobs/${jobId}/set-baseline`, { method: 'POST' }),
+    `POST /dict-jobs/${jobId}/set-baseline`
   )
 }
 

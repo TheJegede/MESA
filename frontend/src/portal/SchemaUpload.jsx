@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react'
+import React, { useState, useRef, useEffect } from 'react'
 import { uploadSchema } from '../api/mesa'
 
 function isInstitutionalEmail(email) {
@@ -8,12 +8,23 @@ function isInstitutionalEmail(email) {
 export default function SchemaUpload() {
   const [file, setFile] = useState(null)
   const [email, setEmail] = useState('')
+  const [system, setSystem] = useState('Edify')
+  const [clusterId, setClusterId] = useState('')
   const [emailTouched, setEmailTouched] = useState(false)
   const [loading, setLoading] = useState(false)
   const [submitted, setSubmitted] = useState(null)   // {job_id, message}
   const [ferpaData, setFerpaData] = useState(null)
   const [error, setError] = useState(null)
   const inputRef = useRef()
+
+  // Auto-fill system and cluster from URL params if present
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const sysParam = params.get('system');
+    const clusterParam = params.get('cluster');
+    if (sysParam) setSystem(sysParam.charAt(0).toUpperCase() + sysParam.slice(1).toLowerCase());
+    if (clusterParam) setClusterId(clusterParam);
+  }, []);
 
   const emailValid = isInstitutionalEmail(email)
   const emailError = emailTouched && email.length > 0 && !emailValid
@@ -35,7 +46,9 @@ export default function SchemaUpload() {
     setLoading(true)
     setError(null)
     try {
-      const data = await uploadSchema(file, confirmed, '', email)
+      // triggered_by_cluster context is passed here
+      const triggerLabel = clusterId ? `Cluster #${clusterId}` : '';
+      const data = await uploadSchema(file, confirmed, triggerLabel, email)
       if (data.ferpa_flag && !confirmed) {
         setFerpaData(data)
       } else if (data.detail) {
@@ -58,9 +71,48 @@ export default function SchemaUpload() {
       <h1 style={{ fontFamily: 'Montserrat', fontWeight: 700, fontSize: 26, color: '#21314D', marginBottom: 6 }}>Schema Upload</h1>
       <p style={{ fontSize: 13, color: '#75757D', marginBottom: 28 }}>Upload a database schema (CSV or JSON) to generate an Edify data dictionary via Agent 2.</p>
 
+      {clusterId && (
+        <div style={{ background: '#FFFBEB', border: '1px solid #FCD34D', borderRadius: 6, padding: '12px 16px', fontSize: 13, color: '#92400E', marginBottom: 24 }}>
+          <strong>Autonomous Trigger Active:</strong> This upload is linked to <strong>Cluster #{clusterId}</strong>. 
+          Categorization locked to <strong>{system}</strong> for automated delta analysis.
+        </div>
+      )}
+
       <div style={{ background: 'rgba(33,49,77,0.04)', border: '1px solid #CFDCE9', borderRadius: 6, padding: '12px 16px', fontSize: 13, color: '#21314D', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 10 }}>
         <span>🔒</span>
         <span><strong>Local Inference Active</strong> — Schema data stays on-device. No data sent to external APIs.</span>
+      </div>
+
+      {/* System Selection */}
+      <div style={{ marginBottom: 20 }}>
+        <label style={{ display: 'block', fontSize: 13, fontWeight: 600, color: '#21314D', marginBottom: 6, fontFamily: 'Montserrat' }}>
+          Target System
+        </label>
+        <select
+          value={system}
+          disabled={!!clusterId}
+          onChange={e => setSystem(e.target.value)}
+          style={{
+            width: '100%',
+            padding: '10px 14px',
+            fontSize: 13,
+            border: '1px solid #CFDCE9',
+            borderRadius: 6,
+            outline: 'none',
+            fontFamily: 'inherit',
+            color: '#21314D',
+            background: clusterId ? '#F7FAFC' : '#fff',
+            cursor: clusterId ? 'not-allowed' : 'pointer',
+            boxSizing: 'border-box',
+          }}
+        >
+          {["Edify", "Banner", "Canvas", "Workday", "OneDrive"].map(s => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
+        <div style={{ fontSize: 11, color: '#75757D', marginTop: 4 }}>
+          Categorizing the system ensures comparison against the correct baseline.
+        </div>
       </div>
 
       {/* Email field */}

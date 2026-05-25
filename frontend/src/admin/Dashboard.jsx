@@ -235,7 +235,9 @@ function ClusterRow({ c, max, threshold }) {
 }
 
 function JobRow({ j }) {
-  const isProcessing = j.state === "processing";
+  const isProcessing = j.state === "processing" || j.state === "queued";
+  const isFailed = j.state === "failed";
+  
   return (
     <div className="flex items-center justify-between py-3" style={{ borderTop: "1px solid var(--border)" }}>
       <div className="min-w-0">
@@ -248,14 +250,23 @@ function JobRow({ j }) {
         <span className="badge-pulse" style={{
           background: "rgba(241,185,26,0.18)", color: "#7A5B00",
           border: "1px solid rgba(241,185,26,0.45)",
-          fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 999,
-        }}>● processing</span>
+          fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 999,
+          textTransform: "uppercase", letterSpacing: "0.04em"
+        }}>Processing</span>
+      ) : isFailed ? (
+        <span style={{
+          background: "rgba(204,70,40,0.12)", color: "#CC4628",
+          border: "1px solid rgba(204,70,40,0.3)",
+          fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 999,
+          textTransform: "uppercase", letterSpacing: "0.04em"
+        }}>Failed</span>
       ) : (
         <span style={{
           background: "rgba(128,195,66,0.16)", color: "#3F7A1A",
           border: "1px solid rgba(128,195,66,0.4)",
-          fontSize: 11, fontWeight: 600, padding: "3px 10px", borderRadius: 999,
-        }}>✓ completed</span>
+          fontSize: 11, fontWeight: 700, padding: "3px 10px", borderRadius: 999,
+          textTransform: "uppercase", letterSpacing: "0.04em"
+        }}>Completed</span>
       )}
     </div>
   );

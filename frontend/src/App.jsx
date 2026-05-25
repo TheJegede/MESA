@@ -35,12 +35,12 @@ function LandingPage() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'linear-gradient(160deg, rgba(9,57,108,0.91) 0%, rgba(6,31,62,0.95) 100%), url(/students-bg.png) center/cover no-repeat',
+      background: 'linear-gradient(160deg, rgba(9,57,108,0.91) 0%, rgba(6,31,62,0.95) 100%), url(/54208456174_e97848619a_b.jpg) center/cover no-repeat',
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
       justifyContent: 'center',
-      padding: 24,
+      padding: 20,
     }}>
       {/* Branding */}
       <div style={{ marginBottom: 56, textAlign: 'center' }}>

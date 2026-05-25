@@ -50,25 +50,38 @@ class TicketTag(Base):
 class Cluster(Base):
     __tablename__ = "clusters"
     id = Column(Integer, primary_key=True, index=True)
-    topic = Column(String(100))
+    topic = Column(String(200))
     system = Column(String(50))
     count = Column(Integer, default=0)
     last_seen = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
     threshold_hit = Column(Boolean, default=False)
     agent2_triggered = Column(Boolean, default=False)
-    dict_eligible = Column(Boolean, default=False)
     it_notified = Column(Boolean, default=False)
+    dict_eligible = Column(Boolean, default=False)
+    state = Column(String(20), default="active")  # active, healed, relapsed
+    healed_at = Column(DateTime)
+
 
 
 class DictJob(Base):
     __tablename__ = "dict_jobs"
     id = Column(Integer, primary_key=True, index=True)
     filename = Column(String(200))
+    system = Column(String(50), default="unknown")
     status = Column(String(20), default="queued")
     artifact_path = Column(String(500))
+    change_note = Column(Text)
     triggered_by_cluster = Column(String(100))
     faculty_email = Column(String(200))
     entry_count = Column(Integer)
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
+
+
+class SchemaBaseline(Base):
+    __tablename__ = "schema_baselines"
+    id = Column(Integer, primary_key=True, index=True)
+    system = Column(String(50), unique=True)
+    schema_json = Column(Text)  # JSON list of column names
     created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
 

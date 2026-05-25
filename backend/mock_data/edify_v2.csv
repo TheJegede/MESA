@@ -1,0 +1,4 @@
+banner_id,first_name,last_name,email,gpa,major,enrollment_status
+1001,John,Doe,jdoe@mines.edu,3.8,CS,Enrolled
+1002,Jane,Smith,jsmith@mines.edu,3.5,ME,Enrolled
+1003,Bob,Jones,bjones@mines.edu,2.9,EE,Withdrawn

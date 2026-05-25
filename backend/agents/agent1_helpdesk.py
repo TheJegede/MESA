@@ -28,6 +28,20 @@ Rules:
 
 
 def classify_ticket(text: str) -> dict:
+    # Deterministic override for demo
+    if "[DEMO_EDIFY]" in text:
+        return {
+            "category": "data_issue",
+            "system_affected": "Edify",
+            "severity": "high",
+            "tier": 2,
+            "auto_resolved": False,
+            "resolution": "Your ticket has been received and escalated to IT staff for review.",
+            "confidence": 1.0,
+            "topic": "Data Pipeline Failure",
+            "error_type": "pipeline_failure"
+        }
+
     try:
         model = genai.GenerativeModel(
             "gemini-flash-latest",
