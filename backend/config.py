@@ -14,6 +14,10 @@ try:
     ESCALATION_NOTIFY_THRESHOLD = int(os.getenv("ESCALATION_NOTIFY_THRESHOLD", "2"))
 except ValueError:
     ESCALATION_NOTIFY_THRESHOLD = 2
+try:
+    AUTO_RESOLVE_MINUTES = int(os.getenv("AUTO_RESOLVE_MINUTES", "10"))
+except ValueError:
+    AUTO_RESOLVE_MINUTES = 10
 OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 ADVISOR_EMAIL = os.getenv("ADVISOR_EMAIL", "advisor@mines.edu")
 IT_TEAM_EMAIL = os.getenv("IT_TEAM_EMAIL", "")

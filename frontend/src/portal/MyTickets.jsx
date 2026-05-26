@@ -88,17 +88,17 @@ function ThreadPanel({ ticket, onStatusChange }) {
 
   const status = resolved ? 'resolved' : ticket.status
 
-  const loadMessages = () => {
+  const fetchMessages = () => {
     getTicketMessages(ticket.id)
       .then(setMessages)
       .catch(() => {})
   }
 
   useEffect(() => {
-    loadMessages()
-    pollRef.current = setInterval(loadMessages, 5000)
+    fetchMessages()
+    pollRef.current = setInterval(fetchMessages, 5000)
     return () => clearInterval(pollRef.current)
-  }, [ticket.id])
+  }, [ticket.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const box = messagesBoxRef.current
@@ -113,7 +113,7 @@ function ThreadPanel({ ticket, onStatusChange }) {
     try {
       const res = await sendTicketMessage(ticket.id, text)
       if (res.ticket_status) onStatusChange(ticket.id, res.ticket_status)
-      loadMessages()
+      fetchMessages()
     } catch (e) {
       setInput(text)
     } finally {
@@ -125,7 +125,7 @@ function ThreadPanel({ ticket, onStatusChange }) {
     await resolveTicket(ticket.id)
     setResolved(true)
     onStatusChange(ticket.id, 'resolved')
-    loadMessages()
+    fetchMessages()
   }
 
   const canResolve = !resolved && !['resolved', 'auto_resolved'].includes(status)
@@ -151,7 +151,7 @@ function ThreadPanel({ ticket, onStatusChange }) {
             value={input}
             onChange={e => setInput(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSend()}
-            placeholder="Reply to MESA AI..."
+            placeholder={messages.some(m => m.sender === 'ai') ? "Reply to MESA AI..." : "Add more details for IT staff..."}
             disabled={sending}
             style={{ flex: 1, border: '1px solid #CFDCE9', borderRadius: 8, padding: '8px 12px', fontSize: 13, outline: 'none', color: '#21314D', background: sending ? '#F7F9FB' : '#fff' }}
           />
@@ -185,8 +185,10 @@ export default function MyTickets() {
   const [loading, setLoading]     = useState(true)
   const [expandedId, setExpandedId] = useState(null)
 
+  const userEmail = localStorage.getItem('mesa_user_email') || ''
+
   const loadTickets = () => {
-    getTickets()
+    getTickets(userEmail)
       .then(setTickets)
       .catch(() => setTickets([]))
       .finally(() => setLoading(false))

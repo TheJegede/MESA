@@ -7,6 +7,8 @@ from backend.config import GEMINI_API_KEY
 logger = logging.getLogger(__name__)
 genai.configure(api_key=GEMINI_API_KEY)
 
+DEMO_TRIGGER_TOKEN = "[DEMO_EDIFY]"
+
 SYSTEM_PROMPT = """You are MESA Agent 1, an IT help desk triage system for Colorado School of Mines.
 Analyze the submitted support ticket and return ONLY valid JSON with this exact structure:
 {
@@ -28,8 +30,7 @@ Rules:
 
 
 def classify_ticket(text: str) -> dict:
-    # Deterministic override for demo
-    if "[DEMO_EDIFY]" in text:
+    if DEMO_TRIGGER_TOKEN in text:
         return {
             "category": "data_issue",
             "system_affected": "Edify",
@@ -49,10 +50,15 @@ def classify_ticket(text: str) -> dict:
         )
         response = model.generate_content(f"Ticket: {text}")
         raw = response.text.strip()
-        # Strip markdown code fences if present
-        raw = re.sub(r"^```(?:json)?\s*", "", raw)
-        raw = re.sub(r"\s*```$", "", raw)
-        result = json.loads(raw)
+        match = re.search(r"\{[\s\S]*\}", raw)
+        if not match:
+            raise ValueError(f"No JSON object in Gemini output: {raw[:200]}")
+        result = json.loads(match.group(0))
+        
+        # Ensure required keys exist
+        if "resolution" not in result or not result["resolution"]:
+            result["resolution"] = "Your ticket has been received. Our team will review it shortly."
+        
         # Enforce confidence gate
         if result.get("confidence", 1.0) < 0.7:
             result["auto_resolved"] = False

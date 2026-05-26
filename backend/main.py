@@ -1,4 +1,5 @@
 import csv
+import logging
 import os
 import json
 import uuid
@@ -7,6 +8,11 @@ import shutil
 import socket
 from contextlib import asynccontextmanager
 from typing import Optional
+
+from alembic.config import Config as AlembicConfig
+from alembic import command as alembic_command
+
+logger = logging.getLogger(__name__)
 
 import ollama
 from fastapi import BackgroundTasks, FastAPI, Depends, Form, HTTPException, UploadFile, File
@@ -18,10 +24,10 @@ from sqlalchemy.orm import Session
 from backend.database import (
     get_db, init_db, normalize_unanswered_ticket_statuses, seed_tickets_if_empty, SessionLocal,
     ticket_status_for_resolution,
-    Ticket, TicketTag, TicketMessage, Cluster, DictJob, DistressFlag, EmailLog,
+    Ticket, TicketTag, TicketMessage, Cluster, ClusterEvent, DictJob, DistressFlag, EmailLog,
     SchemaBaseline
 )
-from backend.config import CLUSTER_THRESHOLD, GMAIL_USER, ADVISOR_EMAIL, UPLOADS_DIR, IT_TEAM_EMAIL
+from backend.config import BASE_DIR, CLUSTER_THRESHOLD, GMAIL_USER, ADVISOR_EMAIL, UPLOADS_DIR, IT_TEAM_EMAIL
 from backend.agents.agent1_helpdesk import classify_ticket
 from backend.agents.agent2_dictionary import generate_dictionary_confirmed, scan_schema_for_ferpa, get_schema_columns
 from backend.agents.agent4_conversation import generate_thread_response
@@ -30,14 +36,8 @@ from backend.services.email_service import send_email, send_with_attachment
 from backend.services.pattern_detector import run_pattern_detection
 from backend.services.scheduler import start_scheduler, stop_scheduler, scheduler
 
-INSTITUTIONAL_DOMAIN = "mines.edu"
-
-
-def _validate_institutional_email(email: str) -> bool:
-    return email.strip().lower().endswith(f"@{INSTITUTIONAL_DOMAIN}")
-
-
 def _process_dict_job(job_id: int, file_path: str, faculty_email: str, filename: str, system: str):
+    system = system.upper()
     db = SessionLocal()
     job = None
     try:
@@ -55,6 +55,7 @@ def _process_dict_job(job_id: int, file_path: str, faculty_email: str, filename:
         if result.get("error"):
             if job:
                 job.status = "failed"
+                job.change_note = f"ERROR: {result['error']}"
                 db.commit()
             send_email(
                 to_addr=faculty_email,
@@ -99,15 +100,21 @@ def _process_dict_job(job_id: int, file_path: str, faculty_email: str, filename:
                                     )
                                 )
                                 db.add(closure_msg)
-                        
-                        db.commit() # ENSURE REAL-TIME UPDATE
-                        
-                        # Reset cluster so it can be re-triggered if new issues arise
+
                         cluster.agent2_triggered = False
                         cluster.threshold_hit = False
+                        cluster.state = "healed"
+                        cluster.healed_at = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+                        db.add(ClusterEvent(
+                            cluster_id=cluster.id,
+                            event_type="healed",
+                            ticket_count=0,
+                            cumulative_count=cluster.total_count or 0,
+                            created_at=cluster.healed_at,
+                        ))
                         db.commit()
                 except Exception as loop_err:
-                    print(f"Error closing self-healing loop: {loop_err}")
+                    logger.error("Self-healing loop failed for job %d: %s", job_id, loop_err)
 
         # Priority Alert: Breaking Change detected
         if result.get("has_removals") and IT_TEAM_EMAIL:
@@ -179,6 +186,16 @@ async def lifespan(app: FastAPI):
     finally:
         db.close()
     load_knowledge_base()
+    try:
+        ollama.chat(
+            model="llama3.1:8b",
+            messages=[{"role": "user", "content": "ping"}],
+            options={"num_predict": 1},
+            keep_alive=-1,
+        )
+        logger.info("Ollama warmed up")
+    except Exception as e:
+        logger.warning("Ollama warmup failed (non-fatal): %s", e)
     start_scheduler()
     yield
     stop_scheduler()
@@ -229,14 +246,26 @@ def create_ticket(payload: TicketCreate, db: Session = Depends(get_db)):
     classification = classify_ticket(payload.text)
 
     now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
+    
+    # Logic: if tier 2 or not auto_resolved, it's escalated or open
+    # But classification usually provides an "escalation message" as resolution
+    auto_resolved = classification.get("auto_resolved", False)
+    res_text = classification.get("resolution")
+    
+    if not auto_resolved and classification.get("tier") == 2:
+        status = "escalated"
+    else:
+        status = ticket_status_for_resolution(res_text)
+
     ticket = Ticket(
         text=payload.text,
         category=classification.get("category", "other"),
         system_affected=classification.get("system_affected", "other"),
         severity=classification.get("severity", "medium"),
-        auto_resolved=classification.get("auto_resolved", False),
-        resolution=classification.get("resolution"),
-        status=ticket_status_for_resolution(classification.get("resolution")),
+        auto_resolved=auto_resolved,
+        resolution=res_text,
+        status=status,
+        user_email=payload.user_email or None,
         last_activity=now,
     )
     db.add(ticket)
@@ -250,17 +279,26 @@ def create_ticket(payload: TicketCreate, db: Session = Depends(get_db)):
     )
     db.add(tag)
 
-    if classification.get("resolution"):
+    if res_text:
         first_msg = TicketMessage(
             ticket_id=ticket.id,
             sender="ai",
-            content=classification["resolution"],
+            content=res_text,
         )
         db.add(first_msg)
+        
+        # If it was escalated at birth, add a system message too for clarity in thread
+        if status == "escalated":
+            sys_msg = TicketMessage(
+                ticket_id=ticket.id,
+                sender="system",
+                content="This issue has been escalated to IT staff for further review.",
+            )
+            db.add(sys_msg)
 
     db.commit()
 
-    if payload.user_email and ticket.resolution:
+    if payload.user_email and res_text:
         result = send_email(
             to_addr=payload.user_email,
             subject=f"MESA Ticket #{ticket.id}: {classification.get('category', 'Support')}",
@@ -288,8 +326,11 @@ def create_ticket(payload: TicketCreate, db: Session = Depends(get_db)):
 # ── GET /tickets ─────────────────────────────────────────────────────────────
 
 @app.get("/tickets")
-def list_tickets(db: Session = Depends(get_db)):
-    tickets = db.query(Ticket).order_by(Ticket.created_at.desc()).all()
+def list_tickets(user_email: Optional[str] = None, db: Session = Depends(get_db)):
+    q = db.query(Ticket)
+    if user_email:
+        q = q.filter(Ticket.user_email == user_email)
+    tickets = q.order_by(Ticket.created_at.desc()).all()
     return [
         {
             "id": t.id,
@@ -317,11 +358,14 @@ def list_clusters(db: Session = Depends(get_db)):
             "topic": c.topic,
             "system": c.system,
             "count": c.count,
+            "total_count": c.total_count or 0,
             "last_seen": _utc_iso(c.last_seen),
             "threshold_hit": c.threshold_hit,
             "agent2_triggered": c.agent2_triggered,
             "dict_eligible": c.dict_eligible,
             "it_notified": c.it_notified,
+            "state": c.state or "active",
+            "healed_at": _utc_iso(c.healed_at),
         }
         for c in clusters
     ]
@@ -358,6 +402,71 @@ def get_cluster_tickets(cluster_id: int, db: Session = Depends(get_db)):
         }
         for t in tickets
     ]
+
+
+# ── GET /clusters/{id}/events ────────────────────────────────────────────────
+
+@app.get("/clusters/{cluster_id}/events")
+def get_cluster_events(cluster_id: int, db: Session = Depends(get_db)):
+    cluster = db.query(Cluster).filter_by(id=cluster_id).first()
+    if not cluster:
+        raise HTTPException(status_code=404, detail="Cluster not found")
+    events = (
+        db.query(ClusterEvent)
+        .filter_by(cluster_id=cluster_id)
+        .order_by(ClusterEvent.created_at.asc())
+        .all()
+    )
+    return [
+        {
+            "id": e.id,
+            "event_type": e.event_type,
+            "ticket_count": e.ticket_count,
+            "cumulative_count": e.cumulative_count,
+            "created_at": _utc_iso(e.created_at),
+        }
+        for e in events
+    ]
+
+
+# ── GET /clusters/history ────────────────────────────────────────────────────
+
+@app.get("/clusters/history")
+def get_clusters_history(db: Session = Depends(get_db)):
+    clusters = db.query(Cluster).order_by(Cluster.last_seen.desc()).all()
+    result = []
+    for c in clusters:
+        events = (
+            db.query(ClusterEvent)
+            .filter_by(cluster_id=c.id)
+            .order_by(ClusterEvent.created_at.asc())
+            .all()
+        )
+        result.append({
+            "id": c.id,
+            "system": c.system,
+            "topic": c.topic,
+            "state": c.state or "active",
+            "count": c.count,
+            "total_count": c.total_count or 0,
+            "threshold_hit": c.threshold_hit,
+            "dict_eligible": c.dict_eligible,
+            "agent2_triggered": c.agent2_triggered,
+            "it_notified": c.it_notified,
+            "last_seen": _utc_iso(c.last_seen),
+            "healed_at": _utc_iso(c.healed_at),
+            "events": [
+                {
+                    "id": e.id,
+                    "event_type": e.event_type,
+                    "ticket_count": e.ticket_count,
+                    "cumulative_count": e.cumulative_count,
+                    "created_at": _utc_iso(e.created_at),
+                }
+                for e in events
+            ],
+        })
+    return result
 
 
 # ── POST /clusters/trigger ────────────────────────────────────────────────────
@@ -424,13 +533,11 @@ def dashboard_stats(db: Session = Depends(get_db)):
         db.query(Cluster).order_by(Cluster.count.desc()).limit(5).all()
     )
     status_breakdown = {
-        "ai_responded": db.query(Ticket).filter(
-            (Ticket.status == "ai_responded") | (Ticket.status == None)
-        ).count(),
-        "escalated":     db.query(Ticket).filter_by(status="escalated").count(),
-        "resolved":      db.query(Ticket).filter_by(status="resolved").count(),
+        "ai_responded": db.query(Ticket).filter_by(status="ai_responded").count(),
+        "escalated":    db.query(Ticket).filter_by(status="escalated").count(),
+        "resolved":     db.query(Ticket).filter_by(status="resolved").count(),
         "auto_resolved": db.query(Ticket).filter_by(status="auto_resolved").count(),
-        "open":          db.query(Ticket).filter_by(status="open").count(),
+        "open":         db.query(Ticket).filter_by(status="open").count(),
     }
     return {
         "tickets_today": tickets_today,
@@ -486,9 +593,9 @@ def generate_dict(
                 cluster = db.query(Cluster).filter_by(id=c_id).first()
                 if cluster:
                     final_system = cluster.system.lower()
-            except: pass
+            except Exception as e:
+                logger.warning("System inference from cluster ref failed: %s", e)
         else:
-            # Fallback to topic search
             cluster = db.query(Cluster).filter_by(topic=triggered_by_cluster).first()
             if cluster:
                 final_system = cluster.system.lower()
@@ -530,7 +637,7 @@ def generate_dict(
     db.add(conf_log)
     db.commit()
 
-    background_tasks.add_task(_process_dict_job, job.id, upload_path, faculty_email, file.filename, system)
+    background_tasks.add_task(_process_dict_job, job.id, upload_path, faculty_email, file.filename, final_system)
 
     return {
         "job_id": job.id,
@@ -850,19 +957,28 @@ def list_escalated_threads(db: Session = Depends(get_db)):
         .order_by(Ticket.last_activity.desc())
         .all()
     )
+    if not tickets:
+        return []
+
+    ticket_ids = [t.id for t in tickets]
+    all_messages = (
+        db.query(TicketMessage)
+        .filter(TicketMessage.ticket_id.in_(ticket_ids))
+        .order_by(TicketMessage.created_at)
+        .all()
+    )
+    msgs_by_ticket: dict = {}
+    for m in all_messages:
+        msgs_by_ticket.setdefault(m.ticket_id, []).append(m)
+
     result = []
     for t in tickets:
-        messages = (
-            db.query(TicketMessage)
-            .filter_by(ticket_id=t.id)
-            .order_by(TicketMessage.created_at)
-            .all()
-        )
-        if not messages and t.resolution:
+        raw_msgs = msgs_by_ticket.get(t.id, [])
+        if not raw_msgs and t.resolution:
             msgs = [{"id": 0, "sender": "ai", "content": t.resolution,
                      "created_at": _utc_iso(t.created_at)}]
         else:
-            msgs = [_serialize_message(m) for m in messages]
+            msgs = [_serialize_message(m) for m in raw_msgs]
         result.append({
             "id": t.id,
             "text": t.text[:120],
@@ -897,6 +1013,28 @@ def get_config():
     return {"cluster_threshold": CLUSTER_THRESHOLD}
 
 
+# ── GET /email-log ────────────────────────────────────────────────────────────
+
+@app.get("/email-log")
+def list_email_log(limit: int = 10, db: Session = Depends(get_db)):
+    logs = (
+        db.query(EmailLog)
+        .order_by(EmailLog.sent_at.desc())
+        .limit(max(1, min(limit, 50)))
+        .all()
+    )
+    return [
+        {
+            "id": l.id,
+            "to_addr": l.to_addr,
+            "subject": l.subject,
+            "sent_at": _utc_iso(l.sent_at),
+            "success": l.success,
+        }
+        for l in logs
+    ]
+
+
 # ── GET /system-health ────────────────────────────────────────────────────────
 
 @app.get("/system-health")
@@ -924,59 +1062,23 @@ def system_health():
 # ── DEMO / RESET ─────────────────────────────────────────────────────────────
 
 @app.post("/demo/reset")
-def reset_database(db: Session = Depends(get_db)):
+def reset_database():
     from backend.database import Base, engine
-    # Drop and recreate all tables
     Base.metadata.drop_all(bind=engine)
     Base.metadata.create_all(bind=engine)
-    
-    # Close old session, open new one for seeding
-    db.close()
-    new_db = SessionLocal()
+
     try:
-        seed_tickets_if_empty(new_db)
-        normalize_unanswered_ticket_statuses(new_db)
-        run_pattern_detection(new_db)
+        alembic_cfg = AlembicConfig(os.path.join(BASE_DIR, "alembic.ini"))
+        alembic_command.stamp(alembic_cfg, "head")
+    except Exception as e:
+        logger.warning("Alembic stamp after reset failed: %s", e)
+
+    db = SessionLocal()
+    try:
+        seed_tickets_if_empty(db)
+        normalize_unanswered_ticket_statuses(db)
+        run_pattern_detection(db)
     finally:
-        new_db.close()
-    
+        db.close()
+
     return {"status": "reset_complete"}
-
-
-def seed_tickets_if_empty(db: Session):
-    if db.query(Ticket).first():
-        return
-
-    # Seed Edify Baseline for Demo
-    edify_baseline_cols = ["student_id", "first_name", "last_name", "email", "gpa", "major", "enrollment_status", "finance_hold"]
-    baseline = SchemaBaseline(system="Edify", schema_json=json.dumps(edify_baseline_cols))
-    db.add(baseline)
-
-    seed_path = os.path.join(os.path.dirname(__file__), "mock_data", "tickets_seed.json")
-    if not os.path.exists(seed_path):
-        return
-
-    with open(seed_path, encoding="utf-8") as f:
-        data = json.load(f)
-
-    for t in data:
-        now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
-        ticket = Ticket(
-            text=t["text"],
-            category=t.get("category", "other"),
-            system_affected=t.get("system_affected", "other"),
-            severity=t.get("severity", "medium"),
-            status=ticket_status_for_resolution(None),
-            last_activity=now,
-        )
-        db.add(ticket)
-        db.flush()
-
-        tag = TicketTag(
-            ticket_id=ticket.id,
-            topic=t.get("topic", "unclassified"),
-            system=t.get("system_affected", "other"),
-            error_type=t.get("error_type", "unknown"),
-        )
-        db.add(tag)
-    db.commit()

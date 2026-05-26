@@ -5,8 +5,9 @@ async function _json(r, label) {
   return r.json()
 }
 
-export async function getTickets() {
-  return _json(await fetch(`${BASE}/tickets`), 'GET /tickets')
+export async function getTickets(userEmail = '') {
+  const url = userEmail ? `${BASE}/tickets?user_email=${encodeURIComponent(userEmail)}` : `${BASE}/tickets`
+  return _json(await fetch(url), 'GET /tickets')
 }
 
 export async function submitTicket(text, userEmail = '') {
@@ -35,14 +36,23 @@ export async function getClusterTickets(clusterId) {
   return _json(await fetch(`${BASE}/clusters/${clusterId}/tickets`), `GET /clusters/${clusterId}/tickets`)
 }
 
+export async function getClusterEvents(clusterId) {
+  return _json(await fetch(`${BASE}/clusters/${clusterId}/events`), `GET /clusters/${clusterId}/events`)
+}
+
+export async function getClusterHistory() {
+  return _json(await fetch(`${BASE}/clusters/history`), 'GET /clusters/history')
+}
+
 export async function getDashboardStats() {
   return _json(await fetch(`${BASE}/dashboard-stats`), 'GET /dashboard-stats')
 }
 
-export async function uploadSchema(file, confirmed = false, triggeredByCluster = '', facultyEmail = '') {
+export async function uploadSchema(file, confirmed = false, triggeredByCluster = '', facultyEmail = '', system = '') {
   const form = new FormData()
   form.append('file', file)
   form.append('faculty_email', facultyEmail)
+  if (system) form.append('system', system)
   const params = new URLSearchParams({ confirmed: String(confirmed), triggered_by_cluster: triggeredByCluster })
   const r = await fetch(`${BASE}/generate-dictionary?${params}`, { method: 'POST', body: form })
   return r.json()
@@ -94,6 +104,10 @@ export async function dismissFlag(id) {
 
 export async function getSystemHealth() {
   return _json(await fetch(`${BASE}/system-health`), 'GET /system-health')
+}
+
+export async function getEmailLog(limit = 10) {
+  return _json(await fetch(`${BASE}/email-log?limit=${limit}`), 'GET /email-log')
 }
 
 export async function getConfig() {

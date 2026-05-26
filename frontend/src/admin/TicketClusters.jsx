@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react'
-import { getClusters, getTickets, getConfig, getClusterTickets } from '../api/mesa'
+import { getClusters, getTickets, getConfig, getClusterTickets, getClusterEvents, triggerAgent2, notifyItTeam } from '../api/mesa'
 
 const TC_FILTERS = ["All", "Edify", "Banner", "Canvas", "OneDrive", "Workday"];
 
@@ -71,75 +71,165 @@ const TICKET_STATUS_STYLE = {
   open:          { label: "Open",          bg: "rgba(135,158,195,0.18)",  color: "#4A5568", border: "rgba(135,158,195,0.5)"  },
 };
 
-function ClusterDrillDown({ clusterId }) {
+const EVENT_LABELS = {
+  activated:     { label: "Cluster Activated",   color: "var(--blaster-blue)" },
+  threshold_hit: { label: "Threshold Reached",   color: "var(--colorado-red)" },
+  healed:        { label: "Cluster Healed",       color: "var(--mines-green)"  },
+  reactivated:   { label: "Issue Reactivated",    color: "#D97706"             },
+};
+
+function ClusterDrillDown({ cluster, onRefresh }) {
+  const [tab, setTab] = useState("tickets");
   const [tickets, setTickets] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [events, setEvents] = useState(null);
+  const [loadingTickets, setLoadingTickets] = useState(true);
+  const [loadingEvents, setLoadingEvents] = useState(false);
+  const [actionMsg, setActionMsg] = useState(null);
 
   useEffect(() => {
-    setLoading(true);
-    getClusterTickets(clusterId)
-      .then(setTickets)
-      .finally(() => setLoading(false));
-  }, [clusterId]);
+    setLoadingTickets(true);
+    getClusterTickets(cluster.id).then(setTickets).finally(() => setLoadingTickets(false));
+  }, [cluster.id]);
 
-  if (loading) return <div style={{ padding: "16px 50px", color: "var(--silver)", fontSize: 12 }}>Loading constituent tickets...</div>;
-  if (!tickets || tickets.length === 0) return <div style={{ padding: "16px 50px", color: "var(--silver)", fontSize: 12 }}>No tickets found for this cluster.</div>;
+  useEffect(() => {
+    if (tab !== "history") return;
+    setLoadingEvents(true);
+    getClusterEvents(cluster.id).then(setEvents).finally(() => setLoadingEvents(false));
+  }, [tab, cluster.id]);
+
+  const handleTrigger = () => {
+    triggerAgent2(cluster.id)
+      .then(() => { setActionMsg("Agent 2 triggered. IT notified to upload schema."); onRefresh(); })
+      .catch(() => setActionMsg("Trigger failed — check backend logs."));
+  };
+
+  const handleNotify = () => {
+    notifyItTeam(cluster.id)
+      .then(() => { setActionMsg("IT team notified via email."); onRefresh(); })
+      .catch(() => setActionMsg("Notification failed — check SMTP config."));
+  };
+
+  const showTrigger = cluster.dict_eligible && cluster.threshold_hit && !cluster.agent2_triggered && cluster.state === "active";
+  const showNotify  = cluster.threshold_hit && !cluster.it_notified && cluster.state === "active";
 
   return (
     <div style={{ background: "var(--surface)", borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)" }}>
-      <div style={{ padding: "12px 20px 8px 50px", fontSize: 11, color: "var(--silver)", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.08em" }}>
-        Constituent Tickets
-      </div>
-      {tickets.map(t => (
-        <div key={t.id} className="grid items-start gap-4 px-5 py-3" style={{ gridTemplateColumns: "80px 1fr 140px 110px 160px 140px", paddingLeft: 50 }}>
-          <div className="mono" style={{ fontSize: 12, color: "var(--silver)", paddingTop: 2 }}>#{String(t.id).padStart(3, "0")}</div>
-          <div style={{ fontSize: 13, color: "var(--dark-blue)", lineHeight: 1.4, paddingRight: 20 }}>
-            {t.text}
-          </div>
-          <div style={{ fontSize: 12, color: "var(--silver)", paddingTop: 2 }}>{t.category}</div>
-          <div style={{ paddingTop: 2 }}><SeverityPill s={t.severity} /></div>
-          <div style={{ paddingTop: 2 }}>
-            <span style={{
-              background: (TICKET_STATUS_STYLE[t.status] || TICKET_STATUS_STYLE.open).bg,
-              color: (TICKET_STATUS_STYLE[t.status] || TICKET_STATUS_STYLE.open).color,
-              fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 999,
-            }}>{(TICKET_STATUS_STYLE[t.status] || TICKET_STATUS_STYLE.open).label}</span>
-          </div>
-          <div className="mono" style={{ fontSize: 11, color: "var(--silver)", paddingTop: 4 }}>
-            {t.created_at ? new Date(t.created_at).toLocaleDateString() : "-"}
-          </div>
+      {/* Action strip */}
+      {(showTrigger || showNotify) && (
+        <div className="flex items-center gap-3 px-5 py-3" style={{ paddingLeft: 50, borderBottom: "1px solid var(--border)" }}>
+          {showTrigger && (
+            <button
+              onClick={handleTrigger}
+              style={{
+                background: "var(--blaster-blue)", color: "#fff",
+                border: "none", borderRadius: 6,
+                fontSize: 12, fontWeight: 600, fontFamily: "Montserrat",
+                padding: "6px 14px", cursor: "pointer",
+              }}
+            >▶ Trigger Agent 2</button>
+          )}
+          {showNotify && (
+            <button
+              onClick={handleNotify}
+              style={{
+                background: "#fff", color: "var(--dark-blue)",
+                border: "1px solid var(--border)", borderRadius: 6,
+                fontSize: 12, fontWeight: 600, fontFamily: "Montserrat",
+                padding: "6px 14px", cursor: "pointer",
+              }}
+            >Notify IT →</button>
+          )}
+          {actionMsg && (
+            <span style={{ fontSize: 12, color: "var(--mines-green)", fontWeight: 600 }}>{actionMsg}</span>
+          )}
         </div>
-      ))}
+      )}
+
+      {/* Tab bar */}
+      <div className="flex" style={{ paddingLeft: 50, borderBottom: "1px solid var(--border)" }}>
+        {["tickets", "history"].map(t => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            style={{
+              background: "none", border: "none", cursor: "pointer",
+              padding: "8px 16px 7px",
+              fontSize: 11, fontWeight: 700, fontFamily: "Montserrat",
+              letterSpacing: "0.08em", textTransform: "uppercase",
+              color: tab === t ? "var(--dark-blue)" : "var(--silver)",
+              borderBottom: tab === t ? "2px solid var(--blaster-blue)" : "2px solid transparent",
+            }}
+          >{t}</button>
+        ))}
+      </div>
+
+      {/* Tickets tab */}
+      {tab === "tickets" && (
+        loadingTickets
+          ? <div style={{ padding: "16px 50px", color: "var(--silver)", fontSize: 12 }}>Loading tickets...</div>
+          : !tickets || tickets.length === 0
+          ? <div style={{ padding: "16px 50px", color: "var(--silver)", fontSize: 12 }}>No tickets found for this cluster.</div>
+          : tickets.map(t => (
+              <div key={t.id} className="grid items-start gap-4 py-3" style={{ gridTemplateColumns: "80px 1fr 140px 110px 160px 140px", paddingLeft: 50, paddingRight: 20 }}>
+                <div className="mono" style={{ fontSize: 12, color: "var(--silver)", paddingTop: 2 }}>#{String(t.id).padStart(3, "0")}</div>
+                <div style={{ fontSize: 13, color: "var(--dark-blue)", lineHeight: 1.4, paddingRight: 20 }}>{t.text}</div>
+                <div style={{ fontSize: 12, color: "var(--silver)", paddingTop: 2 }}>{t.category}</div>
+                <div style={{ paddingTop: 2 }}><SeverityPill s={t.severity} /></div>
+                <div style={{ paddingTop: 2 }}>
+                  <span style={{
+                    background: (TICKET_STATUS_STYLE[t.status] || TICKET_STATUS_STYLE.open).bg,
+                    color: (TICKET_STATUS_STYLE[t.status] || TICKET_STATUS_STYLE.open).color,
+                    fontSize: 10, fontWeight: 700, padding: "2px 8px", borderRadius: 999,
+                  }}>{(TICKET_STATUS_STYLE[t.status] || TICKET_STATUS_STYLE.open).label}</span>
+                </div>
+                <div className="mono" style={{ fontSize: 11, color: "var(--silver)", paddingTop: 4 }}>
+                  {t.created_at ? new Date(t.created_at).toLocaleDateString() : "-"}
+                </div>
+              </div>
+            ))
+      )}
+
+      {/* History tab */}
+      {tab === "history" && (
+        loadingEvents
+          ? <div style={{ padding: "16px 50px", color: "var(--silver)", fontSize: 12 }}>Loading history...</div>
+          : !events || events.length === 0
+          ? <div style={{ padding: "16px 50px", color: "var(--silver)", fontSize: 12 }}>No events recorded yet.</div>
+          : (
+            <div style={{ padding: "12px 20px 12px 50px" }}>
+              {events.map((e, i) => {
+                const cfg = EVENT_LABELS[e.event_type] || { label: e.event_type, color: "var(--silver)" };
+                return (
+                  <div key={e.id} className="flex items-start gap-3" style={{ marginBottom: i < events.length - 1 ? 14 : 0 }}>
+                    <div style={{ width: 10, height: 10, borderRadius: "50%", background: cfg.color, marginTop: 3, flexShrink: 0 }} />
+                    <div>
+                      <div style={{ fontSize: 12, fontWeight: 700, color: cfg.color, fontFamily: "Montserrat" }}>{cfg.label}</div>
+                      <div style={{ fontSize: 11.5, color: "var(--dark-gray)", marginTop: 1 }}>
+                        {e.ticket_count !== null && <span>Active tickets: <span className="mono">{e.ticket_count}</span> · </span>}
+                        {e.cumulative_count !== null && <span>Lifetime total: <span className="mono">{e.cumulative_count}</span> · </span>}
+                        <span className="mono">{e.created_at ? new Date(e.created_at).toLocaleString() : "-"}</span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )
+      )}
     </div>
   );
 }
 
 // ---------- cluster row ----------
-function ClusterTableRow({ c, threshold, isExpanded, onToggle }) {
+function ClusterTableRow({ c, threshold, isExpanded, onToggle, onRefresh }) {
   const [hover, setHover] = useState(false);
-  const aboveThreshold = c.count >= threshold;
-  
-  // State-based styling
-  const stateConfig = {
-    active: {
-      bar: aboveThreshold ? "var(--golden-tech)" : "var(--light-blue)",
-      badge: aboveThreshold ? "Recurring" : "Emerging",
-      badgeColor: aboveThreshold ? "var(--colorado-red)" : "var(--dark-gray)",
-      rowBg: "transparent"
-    },
-    healed: {
-      bar: "var(--mines-green)",
-      badge: "Healed",
-      badgeColor: "var(--mines-green)",
-      rowBg: "rgba(128,195,66,0.05)"
-    },
-    relapsed: {
-      bar: "#6B46C1", 
-      badge: "Relapsed",
-      badgeColor: "#6B46C1",
-      rowBg: "rgba(107,70,193,0.05)"
-    }
-  }[c.state] || { bar: "var(--light-blue)", badge: "Active", badgeColor: "var(--dark-gray)", rowBg: "transparent" };
+
+  // Badge based on backend state + threshold_hit flag (not frontend count comparison)
+  const stateConfig = c.state === "healed"
+    ? { bar: "var(--mines-green)",   badge: "Healed",           badgeColor: "var(--mines-green)",  rowBg: "rgba(128,195,66,0.05)"  }
+    : c.threshold_hit
+    ? { bar: "var(--golden-tech)",   badge: "Above Threshold",  badgeColor: "var(--colorado-red)", rowBg: "rgba(204,70,40,0.03)"   }
+    : { bar: "var(--light-blue)",    badge: "Emerging",         badgeColor: "var(--dark-gray)",    rowBg: "transparent"            };
 
   const pct = Math.min(100, Math.round((c.count / c.max) * 100));
 
@@ -196,7 +286,7 @@ function ClusterTableRow({ c, threshold, isExpanded, onToggle }) {
           }}>{stateConfig.badge}</span>
         </div>
       </div>
-      {isExpanded && <ClusterDrillDown clusterId={c.id} />}
+      {isExpanded && <ClusterDrillDown cluster={c} onRefresh={onRefresh} />}
     </>
   );
 }
@@ -308,7 +398,7 @@ function TicketClusters() {
   // Robustly handle clusters state to prevent HMR crashes if it's still an array from old code
   const safeClusters = clusters && !Array.isArray(clusters) ? clusters : { active: Array.isArray(clusters) ? clusters : [], healed: [] };
 
-  const aboveCount = safeClusters.active.filter((c) => c.count >= threshold).length;
+  const aboveCount = safeClusters.active.filter((c) => c.threshold_hit).length;
   const autoResolvedPct = tickets && tickets.length > 0
     ? Math.round(tickets.filter(t => t.auto_resolved).length / tickets.length * 100)
     : null;
@@ -351,20 +441,10 @@ function TicketClusters() {
               Active crises & historical resolutions · Slide down to heal
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <label style={{ fontSize: 12, color: "var(--dark-gray)", fontWeight: 600 }}>Trigger Threshold:</label>
-            <input
-              type="number" min="1" max="50"
-              value={threshold}
-              onChange={(e) => setThreshold(Math.max(1, Number(e.target.value) || 1))}
-              className="mono"
-              style={{
-                width: 64, padding: "6px 10px",
-                border: "1px solid var(--border)", borderRadius: 6,
-                fontSize: 13, color: "var(--dark-blue)",
-                background: "var(--surface)", textAlign: "center", outline: "none",
-              }}
-            />
+          <div className="flex items-center gap-2" style={{ padding: "5px 12px", border: "1px solid var(--border)", borderRadius: 6, background: "var(--surface)" }}>
+            <span style={{ fontSize: 11, color: "var(--silver)", fontFamily: "Montserrat", fontWeight: 700, letterSpacing: "0.06em", textTransform: "uppercase" }}>Threshold</span>
+            <span className="mono" style={{ fontSize: 14, color: "var(--dark-blue)", fontWeight: 700 }}>{threshold}</span>
+            <span style={{ fontSize: 10, color: "var(--silver)" }}>(set in .env)</span>
           </div>
         </div>
         <TableHeader
@@ -386,13 +466,14 @@ function TicketClusters() {
                     threshold={threshold}
                     isExpanded={expandedClusterId === c.id}
                     onToggle={() => setExpandedClusterId(expandedClusterId === c.id ? null : c.id)}
+                    onRefresh={load}
                   />
                 ))}
 
                 {/* Healed Section */}
                 {safeClusters.healed.length > 0 && (
                   <>
-                    <div style={{ padding: "20px 20px 10px", background: "rgba(33,49,77,0.02)", fontSize: 11, fontWeight: 700, color: "var(--mines-green)", textTransform: "uppercase", borderTop: "1px solid var(--border)" }}>Recently Healed Systems (Last 24h)</div>
+                    <div style={{ padding: "20px 20px 10px", background: "rgba(33,49,77,0.02)", fontSize: 11, fontWeight: 700, color: "var(--mines-green)", textTransform: "uppercase", borderTop: "1px solid var(--border)" }}>Healed Systems</div>
                     {safeClusters.healed.map((c) => (
                       <ClusterTableRow
                         key={c.id}
@@ -400,6 +481,7 @@ function TicketClusters() {
                         threshold={threshold}
                         isExpanded={expandedClusterId === c.id}
                         onToggle={() => setExpandedClusterId(expandedClusterId === c.id ? null : c.id)}
+                        onRefresh={load}
                       />
                     ))}
                   </>
@@ -411,7 +493,7 @@ function TicketClusters() {
         <div className="px-5 py-3 flex items-center justify-between" style={{ borderTop: "1px solid var(--border)", background: "var(--surface)" }}>
           <div style={{ fontSize: 11.5, color: "var(--silver)" }}>
             <span style={{ display: "inline-block", width: 8, height: 2, background: "var(--colorado-red)", verticalAlign: "middle", marginRight: 6 }}></span>
-            Red marker indicates current threshold ({threshold} tickets)
+            Red marker = threshold ({threshold} tickets, configured in .env)
           </div>
           <div style={{ fontSize: 11.5, color: "var(--dark-gray)" }}>
             APScheduler sweep | 60s interval

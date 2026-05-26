@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { getDashboardStats, getClusters, getSystemHealth, getDictJobs, getConfig } from '../api/mesa'
+import { getDashboardStats, getClusters, getDictJobs, getEmailLog } from '../api/mesa'
 
 
 function KpiCard({ k }) {
@@ -170,11 +170,22 @@ function StatusBreakdownCard({ breakdown, total }) {
   );
 }
 
-function ClusterRow({ c, max, threshold }) {
-  const atThreshold = c.count >= threshold;
-  const pct = Math.min(100, Math.round((c.count / max) * 100));
-  const barColor = atThreshold ? "var(--golden-tech)" : "var(--light-blue)";
+function ClusterRow({ c, max }) {
   const [hover, setHover] = useState(false);
+  const pct = Math.min(100, Math.round((c.count / max) * 100));
+
+  // Badge driven by backend state — no frontend threshold comparison needed
+  const badge = c.state === "healed"
+    ? { label: "Healed",          color: "var(--mines-green)"  }
+    : c.threshold_hit
+    ? { label: "Above Threshold", color: "var(--colorado-red)" }
+    : { label: "Emerging",        color: "var(--silver)"       };
+
+  const barColor = c.state === "healed"
+    ? "var(--mines-green)"
+    : c.threshold_hit
+    ? "var(--golden-tech)"
+    : "var(--light-blue)";
 
   return (
     <div
@@ -191,44 +202,27 @@ function ClusterRow({ c, max, threshold }) {
       <div>
         <span style={{
           display: "inline-block",
-          background: "var(--dark-blue)",
-          color: "#fff",
-          fontSize: 11,
-          fontFamily: "Montserrat",
-          fontWeight: 600,
-          padding: "4px 10px",
-          borderRadius: 4,
-          letterSpacing: "0.04em",
+          background: "var(--dark-blue)", color: "#fff",
+          fontSize: 11, fontFamily: "Montserrat", fontWeight: 600,
+          padding: "4px 10px", borderRadius: 4, letterSpacing: "0.04em",
         }}>{c.system}</span>
       </div>
       <div style={{ fontSize: 13.5, color: "var(--dark-blue)" }}>{c.topic}</div>
-      <div style={{ position: "relative" }}>
+      <div>
         <div style={{ height: 8, background: "var(--pale-blue)", borderRadius: 999, overflow: "hidden" }}>
           <div style={{ height: "100%", width: pct + "%", background: barColor, borderRadius: 999, transition: "width 0.3s" }}></div>
         </div>
-        <div style={{
-          position: "absolute",
-          left: `${Math.min(98, (threshold / max) * 100)}%`,
-          top: -3, bottom: -3,
-          width: 2,
-          background: "var(--colorado-red)",
-          opacity: 0.55,
-        }} title="Threshold"></div>
       </div>
       <div className="mono text-right" style={{ fontSize: 16, color: "var(--dark-blue)", fontWeight: 500 }}>
         {c.count}<span style={{ color: "var(--silver)", fontSize: 11 }}> /{max}</span>
       </div>
       <div className="text-right">
-        {atThreshold ? (
-          <span style={{
-            background: "transparent", border: "1.5px solid var(--colorado-red)",
-            color: "var(--colorado-red)", fontSize: 10.5, fontWeight: 700,
-            padding: "3px 9px", borderRadius: 999, fontFamily: "Montserrat",
-            letterSpacing: "0.06em", textTransform: "uppercase",
-          }}>Recurring</span>
-        ) : (
-          <span style={{ fontSize: 11, color: "var(--silver)" }}>Emerging</span>
-        )}
+        <span style={{
+          background: "transparent", border: `1.5px solid ${badge.color}`,
+          color: badge.color, fontSize: 10.5, fontWeight: 700,
+          padding: "3px 9px", borderRadius: 999, fontFamily: "Montserrat",
+          letterSpacing: "0.06em", textTransform: "uppercase",
+        }}>{badge.label}</span>
       </div>
     </div>
   );
@@ -272,49 +266,49 @@ function JobRow({ j }) {
   );
 }
 
-function HealthRow({ h }) {
-  const dotClass = h.status === "online" ? "pulse-green" : h.status === "running" ? "pulse-blue" : "pulse-amber";
+function EmailRow({ e }) {
+  const timeStr = e.sent_at
+    ? new Date(e.sent_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : '—'
+  const subject = e.subject?.length > 44 ? e.subject.slice(0, 41) + '…' : (e.subject || '—')
   return (
-    <div className="flex items-center justify-between py-3" style={{ borderTop: "1px solid var(--border)" }}>
-      <div className="flex items-center gap-3 min-w-0">
-        <span className={"pulse-dot " + dotClass}></span>
-        <div className="min-w-0">
-          <div style={{ fontSize: 13, color: "var(--dark-blue)", fontWeight: 600 }}>{h.name}</div>
-          <div style={{ fontSize: 11, color: "var(--silver)" }}>{h.detail}</div>
+    <div className="flex items-center justify-between py-3" style={{ borderTop: "1px solid var(--border)", gap: 8 }}>
+      <div style={{ minWidth: 0, flex: 1 }}>
+        <div style={{ fontSize: 12.5, color: "var(--dark-blue)", fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {subject}
         </div>
+        <div style={{ fontSize: 11, color: "var(--silver)", marginTop: 2 }}>→ {e.to_addr} · {timeStr}</div>
       </div>
-      <div className="mono" style={{ fontSize: 12, color: "var(--dark-gray)" }}>{h.latency}</div>
+      <span style={{
+        background: e.success ? "rgba(128,195,66,0.16)" : "rgba(204,70,40,0.12)",
+        color: e.success ? "#3F7A1A" : "#CC4628",
+        border: `1px solid ${e.success ? "rgba(128,195,66,0.4)" : "rgba(204,70,40,0.3)"}`,
+        fontSize: 10.5, fontWeight: 700, padding: "2px 9px", borderRadius: 999,
+        textTransform: "uppercase", letterSpacing: "0.04em", flexShrink: 0,
+      }}>
+        {e.success ? "Sent" : "Failed"}
+      </span>
     </div>
-  );
+  )
 }
 
 function Dashboard() {
-  const [threshold, setThreshold] = useState(5);
   const [liveStats, setLiveStats] = useState(null)
   const [liveClusters, setLiveClusters] = useState(null)
-  const [liveHealth, setLiveHealth] = useState(null)
+  const [liveEmailLog, setLiveEmailLog] = useState(null)
   const [liveJobs, setLiveJobs] = useState(null)
   const [ticketMetric, setTicketMetric] = useState('24h')
 
   const max = liveClusters ? Math.max(...liveClusters.map(c => c.count), 1) : 5
 
-  useEffect(() => {
-    getConfig().then(cfg => setThreshold(cfg.cluster_threshold)).catch(() => {})
-  }, [])
-
   const fetchAll = useCallback(async () => {
     try {
-      const [stats, clusters, health, jobs] = await Promise.all([
-        getDashboardStats(), getClusters(), getSystemHealth(), getDictJobs(),
+      const [stats, clusters, jobs, emailLog] = await Promise.all([
+        getDashboardStats(), getClusters(), getDictJobs(), getEmailLog(8),
       ])
       setLiveStats(stats)
       setLiveClusters(clusters)
-      setLiveHealth([
-        { name: 'Ollama (Llama 3.1:8b)', latency: '—', status: health.ollama === 'online' ? 'online' : 'offline', detail: 'local inference' },
-        { name: 'Gemini Flash', latency: '—', status: 'online', detail: 'cloud API' },
-        { name: 'Gmail SMTP', latency: '—', status: health.gmail_smtp === 'online' ? 'online' : 'offline', detail: 'outbound only' },
-        { name: 'APScheduler', latency: 'next: 60s', status: health.scheduler === 'running' ? 'running' : 'stopped', detail: 'distress sweep' },
-      ])
+      setLiveEmailLog(Array.isArray(emailLog) ? emailLog : [])
       const mapped = Array.isArray(jobs) ? jobs.slice(0, 3).map(j => {
         const isProcessing = j.status === 'processing' || j.status === 'queued'
         const time = j.created_at ? new Date(j.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'
@@ -402,36 +396,23 @@ function Dashboard() {
               Ticket Clusters
             </h2>
             <div style={{ fontSize: 11.5, color: "var(--silver)", marginTop: 2 }}>
-              Last 24 hours · grouped by source system
+              All active clusters · grouped by source system
             </div>
           </div>
-          <div className="flex items-center gap-3">
-            <label style={{ fontSize: 12, color: "var(--dark-gray)", fontWeight: 600 }}>Trigger Threshold:</label>
-            <input
-              type="number"
-              min="1" max="50"
-              value={threshold}
-              onChange={(e) => setThreshold(Math.max(1, Number(e.target.value) || 1))}
-              className="mono"
-              style={{
-                width: 64, padding: "6px 10px",
-                border: "1px solid var(--border)", borderRadius: 6,
-                fontSize: 13, color: "var(--dark-blue)", background: "var(--surface)",
-                textAlign: "center", outline: "none",
-              }}
-            />
-          </div>
+          <a
+            href="/admin/clusters"
+            style={{ fontSize: 12, color: "var(--blaster-blue)", fontWeight: 600, textDecoration: "none" }}
+          >Full analysis →</a>
         </div>
         <div>
           {liveClusters === null
             ? <div style={{ padding: "28px", textAlign: "center", color: "var(--silver)", fontSize: 13 }}>Loading clusters…</div>
-            : liveClusters.map((c) => <ClusterRow key={c.id || (c.system + '-' + c.topic)} c={c} max={max} threshold={threshold} />)
+            : liveClusters.map((c) => <ClusterRow key={c.id || (c.system + '-' + c.topic)} c={c} max={max} />)
           }
         </div>
         <div className="px-5 py-3 flex items-center justify-between" style={{ borderTop: "1px solid var(--border)", background: "var(--surface)", borderRadius: "0 0 8px 8px" }}>
           <div style={{ fontSize: 11.5, color: "var(--silver)" }}>
-            <span style={{ display: "inline-block", width: 8, height: 2, background: "var(--colorado-red)", verticalAlign: "middle", marginRight: 6 }}></span>
-            Red marker shows current threshold ({threshold} tickets)
+            Cluster overview · action controls in Full analysis
           </div>
         </div>
       </section>
@@ -472,17 +453,17 @@ function Dashboard() {
         >
           <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
             <h3 style={{ fontFamily: "Montserrat", fontWeight: 700, fontSize: 15, color: "var(--dark-blue)" }}>
-              System Health
+              Recent Emails Sent
             </h3>
             <span style={{ fontSize: 11, color: "var(--silver)", fontWeight: 600 }}>
-            {liveHealth
-              ? `${liveHealth.filter(h => h.status === 'online' || h.status === 'running').length} / ${liveHealth.length} operational`
-              : '— / 4 operational'}
-          </span>
+              {liveEmailLog ? `${liveEmailLog.length} recent` : '—'}
+            </span>
           </div>
-          {liveHealth === null
+          {liveEmailLog === null
             ? <div style={{ padding: '24px 0', textAlign: 'center', fontSize: 12, color: 'var(--silver)' }}>Loading…</div>
-            : liveHealth.map((h) => <HealthRow key={h.name} h={h} />)
+            : liveEmailLog.length === 0
+            ? <div style={{ padding: '24px 0', textAlign: 'center', fontSize: 12, color: 'var(--silver)' }}>No emails sent yet.</div>
+            : liveEmailLog.map((e) => <EmailRow key={e.id} e={e} />)
           }
         </div>
       </section>

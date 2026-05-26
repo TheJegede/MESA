@@ -81,6 +81,9 @@ function Sidebar({ currentRoute, onNavigate }) {
             <NavLink route="escalated" currentRoute={currentRoute} onNavigate={onNavigate}
               icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z"/></svg>}
               label="Escalated Threads" />
+            <NavLink route="history" currentRoute={currentRoute} onNavigate={onNavigate}
+              icon={<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>}
+              label="Lifecycle History" />
           </nav>
           <div style={{ margin: "16px 12px 0", borderTop: "1px solid rgba(255,255,255,0.08)", paddingTop: 12 }}>
             <button

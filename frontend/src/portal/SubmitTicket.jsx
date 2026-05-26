@@ -18,6 +18,7 @@ export default function SubmitTicket() {
       const data = await submitTicket(text, email)
       setResult(data)
       setText('')
+      if (email) localStorage.setItem('mesa_user_email', email)
     } catch (err) {
       setError('Failed to submit ticket. Please try again.')
     } finally {
@@ -49,9 +50,18 @@ export default function SubmitTicket() {
           />
         </div>
         <div style={{ marginBottom: 16 }}>
-          <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#21314D', marginBottom: 6, fontFamily: 'Montserrat' }}>
-            Describe your issue *
-          </label>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 6 }}>
+            <label style={{ fontSize: 12, fontWeight: 600, color: '#21314D', fontFamily: 'Montserrat' }}>
+              Describe your issue *
+            </label>
+            <button
+              type="button"
+              onClick={() => setText("Cannot pull enrollment pipeline data from the Edify data warehouse — getting 'connection refused' on every attempt since last Thursday's maintenance window. The nightly ETL job has also thrown ORA-12154 errors twice this week. IR reporting deadline is tomorrow and grad trend data is completely inaccessible. Several colleagues have reported the same issue today. [DEMO_EDIFY]")}
+              style={{ background: 'transparent', border: '1px solid #CFDCE9', borderRadius: 4, padding: '3px 10px', fontSize: 11, color: '#81848A', cursor: 'pointer', fontFamily: 'Montserrat', fontWeight: 600 }}
+            >
+              Load Demo Scenario
+            </button>
+          </div>
           <textarea
             value={text}
             onChange={e => setText(e.target.value)}

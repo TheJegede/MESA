@@ -12,7 +12,7 @@ FERPA_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
-SYSTEM_PROMPT = """You are MESA Agent 2, a data dictionary and impact analysis generator for Mines Mines Edify data warehouse.
+SYSTEM_PROMPT = """You are MESA Agent 2, a data dictionary and impact analysis generator for Colorado School of Mines Edify data warehouse.
 You will receive a database schema as CSV or JSON and a list of structural changes (added/removed columns).
 
 TASKS:
@@ -102,13 +102,68 @@ def generate_dictionary_confirmed(filepath: str, baseline_columns: list[str] = N
         if baseline_columns:
             delta_summary = f"ADDED COLUMNS: {added}\nREMOVED COLUMNS: {removed}"
         else:
-            delta_summary = "No baseline provided. This is the INITIAL schema for this system. Establish descriptions for all fields."
+            delta_summary = "No baseline provided. Initial schema capture. Describe each field only. Set change_note to empty string."
 
         result = _call_ollama_and_save(schema_text, delta_summary, filepath)
         result["has_removals"] = len(removed) > 0
         return result
     except Exception as e:
         return {"error": f"Local model error: {str(e)}"}
+
+
+_lenient = json.JSONDecoder(strict=False)
+
+
+def _parse(s: str) -> dict:
+    """Parse JSON with strict=False — accepts literal control chars in strings."""
+    return _lenient.decode(s)
+
+
+def _extract_json_object(raw: str) -> dict:
+    """Find the first balanced {…} block — robust against model postamble and control chars."""
+    stripped = raw.strip()
+    # Try the whole output first (model returned bare JSON)
+    try:
+        return _parse(stripped)
+    except json.JSONDecodeError:
+        pass
+    # Strip markdown code fences: ```json … ```
+    fence = re.search(r"```(?:json)?\s*([\s\S]*?)\s*```", stripped)
+    if fence:
+        try:
+            return _parse(fence.group(1))
+        except json.JSONDecodeError:
+            pass
+    # Brace-counting: first balanced {…} (ignores greedy overreach)
+    start = stripped.find('{')
+    if start == -1:
+        raise ValueError(f"No JSON object in model output: {raw[:300]}")
+    depth = 0
+    in_str = False
+    escape = False
+    for i, ch in enumerate(stripped[start:], start):
+        if escape:
+            escape = False
+            continue
+        if ch == '\\' and in_str:
+            escape = True
+            continue
+        if ch == '"':
+            in_str = not in_str
+            continue
+        if in_str:
+            continue
+        if ch == '{':
+            depth += 1
+        elif ch == '}':
+            depth -= 1
+            if depth == 0:
+                candidate = stripped[start:i + 1]
+                try:
+                    return _parse(candidate)
+                except json.JSONDecodeError as exc:
+                    raise ValueError(f"JSON parse failed: {exc} — extracted: {candidate[:200]}")
+    raise ValueError(f"Unbalanced braces in model output: {raw[:300]}")
 
 
 def _call_ollama_and_save(schema_text: str, delta_summary: str, source_path: str) -> dict:
@@ -119,14 +174,12 @@ def _call_ollama_and_save(schema_text: str, delta_summary: str, source_path: str
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": prompt},
         ],
+        format="json",
+        options={"num_predict": 1200},
+        keep_alive=-1,
     )
     raw = response['message']['content']
-    # extract first {...} block
-    match = re.search(r"\{[\s\S]*\}", raw)
-    if not match:
-        raise ValueError(f"No JSON object found in model output: {raw[:200]}")
-
-    result = json.loads(match.group(0))
+    result = _extract_json_object(raw)
     entries = result.get("dictionary", [])
     change_note = result.get("change_note", "No impact analysis generated.")
 

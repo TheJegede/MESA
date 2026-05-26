@@ -48,7 +48,7 @@ export default function SchemaUpload() {
     try {
       // triggered_by_cluster context is passed here
       const triggerLabel = clusterId ? `Cluster #${clusterId}` : '';
-      const data = await uploadSchema(file, confirmed, triggerLabel, email)
+      const data = await uploadSchema(file, confirmed, triggerLabel, email, system)
       if (data.ferpa_flag && !confirmed) {
         setFerpaData(data)
       } else if (data.detail) {
@@ -69,7 +69,7 @@ export default function SchemaUpload() {
   return (
     <div style={{ maxWidth: 720, margin: '40px auto', padding: '0 24px' }}>
       <h1 style={{ fontFamily: 'Montserrat', fontWeight: 700, fontSize: 26, color: '#21314D', marginBottom: 6 }}>Schema Upload</h1>
-      <p style={{ fontSize: 13, color: '#75757D', marginBottom: 28 }}>Upload a database schema (CSV or JSON) to generate an Edify data dictionary via Agent 2.</p>
+      <p style={{ fontSize: 13, color: '#75757D', marginBottom: 28 }}>Upload a data file (CSV or JSON) to generate a data dictionary via Agent 2 local inference.</p>
 
       {clusterId && (
         <div style={{ background: '#FFFBEB', border: '1px solid #FCD34D', borderRadius: 6, padding: '12px 16px', fontSize: 13, color: '#92400E', marginBottom: 24 }}>

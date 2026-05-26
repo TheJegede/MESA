@@ -1,5 +1,4 @@
-
 student_id,first_name,last_name,email,gpa,major,enrollment_status,finance_hold
-1001,John,Doe,jdoe@mines.edu,3.8,CS,Enrolled,False
-1002,Jane,Smith,jsmith@mines.edu,3.5,ME,Enrolled,True
-1003,Bob,Jones,bjones@mines.edu,2.9,EE,Withdrawn,False
+1001,John,Doe,jdoe@mines.edu,3.8,CS,Enrolled,FALSE
+1002,Jane,Smith,jsmith@mines.edu,3.5,ME,Enrolled,TRUE
+1003,Bob,Jones,bjones@mines.edu,2.9,EE,Withdrawn,FALSE

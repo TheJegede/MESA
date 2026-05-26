@@ -3,7 +3,7 @@ import json
 import os
 from sqlalchemy import (
     create_engine, Column, Integer, String, Boolean,
-    DateTime, Text, ForeignKey
+    DateTime, Text, ForeignKey, func
 )
 from sqlalchemy.orm import declarative_base, sessionmaker
 
@@ -25,6 +25,7 @@ class Ticket(Base):
     auto_resolved = Column(Boolean, default=False)
     resolution = Column(Text)
     status = Column(String(30), default="ai_responded")
+    user_email = Column(String(200), nullable=True)
     last_activity = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
@@ -53,13 +54,24 @@ class Cluster(Base):
     topic = Column(String(200))
     system = Column(String(50))
     count = Column(Integer, default=0)
+    total_count = Column(Integer, default=0)  # lifetime ticket count, never resets
     last_seen = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
     threshold_hit = Column(Boolean, default=False)
     agent2_triggered = Column(Boolean, default=False)
     it_notified = Column(Boolean, default=False)
     dict_eligible = Column(Boolean, default=False)
-    state = Column(String(20), default="active")  # active, healed, relapsed
+    state = Column(String(20), default="active")  # active, healed
     healed_at = Column(DateTime)
+
+
+class ClusterEvent(Base):
+    __tablename__ = "cluster_events"
+    id = Column(Integer, primary_key=True, index=True)
+    cluster_id = Column(Integer, ForeignKey("clusters.id"), nullable=False)
+    event_type = Column(String(20), nullable=False)  # activated | threshold_hit | healed | reactivated
+    ticket_count = Column(Integer)       # active ticket count at event time
+    cumulative_count = Column(Integer)   # lifetime total at event time
+    created_at = Column(DateTime, default=lambda: datetime.datetime.now(datetime.timezone.utc))
 
 
 
@@ -131,6 +143,18 @@ def normalize_unanswered_ticket_statuses(db):
         .filter((Ticket.status == "ai_responded") | (Ticket.status == None))
         .all()
     )
+    if not tickets:
+        return
+
+    ticket_ids = [t.id for t in tickets]
+    msg_counts = {
+        tid: cnt
+        for tid, cnt in db.query(TicketMessage.ticket_id, func.count(TicketMessage.id))
+        .filter(TicketMessage.ticket_id.in_(ticket_ids))
+        .group_by(TicketMessage.ticket_id)
+        .all()
+    }
+
     changed = False
     for ticket in tickets:
         if ticket.resolution:
@@ -139,8 +163,7 @@ def normalize_unanswered_ticket_statuses(db):
                 changed = True
             continue
 
-        message_count = db.query(TicketMessage).filter_by(ticket_id=ticket.id).count()
-        if message_count == 0 and ticket.status != "open":
+        if msg_counts.get(ticket.id, 0) == 0 and ticket.status != "open":
             ticket.status = "open"
             changed = True
 
@@ -149,25 +172,37 @@ def normalize_unanswered_ticket_statuses(db):
 
 
 def seed_tickets_if_empty(db):
-    if db.query(Ticket).count() > 0:
+    if db.query(Ticket).first():
         return
+    
+    # Seed Edify Baseline — system stored uppercase to match job normalization
+    edify_baseline_cols = ["student_id", "first_name", "last_name", "email", "gpa", "major", "enrollment_status", "finance_hold"]
+    if not db.query(SchemaBaseline).filter_by(system="EDIFY").first():
+        db.add(SchemaBaseline(system="EDIFY", schema_json=json.dumps(edify_baseline_cols)))
+
     seed_path = os.path.join(MOCK_DATA_DIR, "tickets_seed.json")
     if not os.path.exists(seed_path):
-        return  # seed file not created yet
+        return
     with open(seed_path, encoding="utf-8") as f:
         data = json.load(f)
+    
+    now = datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
     for t in data:
+        res = t.get("resolution")
         ticket = Ticket(
             text=t.get("text", ""),
             category=t.get("category", "other"),
             system_affected=t.get("system_affected", "other"),
             severity=t.get("severity", "low"),
             auto_resolved=t.get("auto_resolved", False),
-            resolution=t.get("resolution"),
-            status=ticket_status_for_resolution(t.get("resolution")),
+            resolution=res,
+            status=ticket_status_for_resolution(res),
+            last_activity=now,
+            created_at=now,
         )
         db.add(ticket)
         db.flush()
+
         tag = TicketTag(
             ticket_id=ticket.id,
             topic=t.get("topic", "unclassified"),
@@ -175,4 +210,13 @@ def seed_tickets_if_empty(db):
             error_type=t.get("error_type", "unknown"),
         )
         db.add(tag)
+
+        if res:
+            msg = TicketMessage(
+                ticket_id=ticket.id,
+                sender="ai",
+                content=res,
+                created_at=now,
+            )
+            db.add(msg)
     db.commit()

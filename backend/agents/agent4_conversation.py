@@ -58,9 +58,10 @@ Respond with JSON only: {{"response": "your response here", "escalate": false}}"
     try:
         model = genai.GenerativeModel("gemini-flash-latest", system_instruction=SYSTEM_PROMPT)
         raw = model.generate_content(prompt).text.strip()
-        raw = re.sub(r"^```(?:json)?\s*", "", raw)
-        raw = re.sub(r"\s*```$", "", raw)
-        result = json.loads(raw)
+        match = re.search(r"\{[\s\S]*\}", raw)
+        if not match:
+            raise ValueError(f"No JSON object in Gemini output: {raw[:200]}")
+        result = json.loads(match.group(0))
         return {
             "response": result.get("response", "I was unable to generate a response. Please try again."),
             "escalate": bool(result.get("escalate", False)),
@@ -68,6 +69,6 @@ Respond with JSON only: {{"response": "your response here", "escalate": false}}"
     except Exception as e:
         logger.error("Agent 4: response generation failed: %s", e)
         return {
-            "response": "I'm having trouble processing your request right now. Your ticket has been escalated to IT staff.",
-            "escalate": True,
+            "response": "I'm having trouble processing your request right now. Please try again in a moment.",
+            "escalate": False,
         }

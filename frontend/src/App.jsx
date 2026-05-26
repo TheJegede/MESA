@@ -6,6 +6,7 @@ import TicketClusters from './admin/TicketClusters'
 import DictPanel from './admin/DictPanel'
 import DistressQueue from './admin/DistressQueue'
 import EscalatedThreads from './admin/EscalatedThreads'
+import ClusterHistory from './admin/ClusterHistory'
 import SubmitTicket from './portal/SubmitTicket'
 import MyTickets from './portal/MyTickets'
 import SchemaUpload from './portal/SchemaUpload'
@@ -295,8 +296,9 @@ function AdminWrapper({ page }) {
     dictionary: 'Data Dictionary Generator',
     distress: 'Distress Queue',
     escalated: 'Escalated Threads',
+    history: 'Cluster Lifecycle History',
   }
-  const COMPONENTS = { dashboard: Dashboard, clusters: TicketClusters, dictionary: DictPanel, distress: DistressQueue, escalated: EscalatedThreads }
+  const COMPONENTS = { dashboard: Dashboard, clusters: TicketClusters, dictionary: DictPanel, distress: DistressQueue, escalated: EscalatedThreads, history: ClusterHistory }
   const Component = COMPONENTS[page]
   return (
     <AdminLayout pageTitle={TITLES[page]} currentRoute={page} onNavigate={(r) => window.location.href = `/admin/${r}`}>
@@ -320,6 +322,7 @@ export default function App() {
         <Route path="/admin/dictionary" element={<AdminWrapper page="dictionary" />} />
         <Route path="/admin/distress" element={<AdminWrapper page="distress" />} />
         <Route path="/admin/escalated" element={<AdminWrapper page="escalated" />} />
+        <Route path="/admin/history" element={<AdminWrapper page="history" />} />
       </Routes>
     </BrowserRouter>
   )

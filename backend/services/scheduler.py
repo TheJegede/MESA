@@ -4,12 +4,10 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from backend.database import SessionLocal, Ticket, TicketTag, Cluster, EmailLog
 from backend.agents.agent3_distress import scan_students
 from backend.services.email_service import send_email
-from backend.config import IT_TEAM_EMAIL, ESCALATION_NOTIFY_THRESHOLD
+from backend.config import IT_TEAM_EMAIL, ESCALATION_NOTIFY_THRESHOLD, AUTO_RESOLVE_MINUTES
 
 logger = logging.getLogger(__name__)
 scheduler = BackgroundScheduler()
-
-AUTO_RESOLVE_MINUTES = 10
 
 
 def _distress_sweep():
