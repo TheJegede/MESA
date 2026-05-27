@@ -1,4 +1,3 @@
-.claude/
 .env
 __pycache__/
 *.pyc
@@ -17,10 +16,6 @@ backend/outputs/*
 backend/uploads/*
 !backend/uploads/.gitkeep
 docs
-CLAUDE.md
 MEMORY.md
 ERRORS.md
-AGENTS.md
 MESA_Architecture_and_Implementation_Plan.md
-GEMINI.md
-.gemini

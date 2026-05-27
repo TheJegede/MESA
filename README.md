@@ -1,104 +1,147 @@
 # MESA — Mines Enterprise Support & Advising Agent
 
-MESA is an AI-driven operations platform for the Colorado School of Mines. It integrates multi-modal AI agents to streamline IT support, manage institutional data dictionaries, and provide early warning signals for student academic distress.
+MESA is an AI-driven operations platform designed for the **Colorado School of Mines**. It leverages a hybrid cloud/local AI architecture to streamline institutional support, automate data governance, and provide proactive student advising.
 
-## 🌟 Key Features
+---
 
--   **Agent 1: IT Help Desk Triage (Gemini 2.0 Flash):** Automatically classifies, prioritizes, and attempts to resolve IT tickets using an institutional knowledge base.
--   **Agent 2: Edify Data Dictionary (Local Llama 3.1):** Generates comprehensive data dictionaries from schema uploads with built-in FERPA sensitivity detection.
--   **Agent 3: Student Distress Early Warning (Local Llama 3.1):** Scans student engagement signals (Canvas, attendance) to identify and flag students at risk of academic failure.
--   **Agent 4: Conversational Support:** Provides a threaded chat interface for ticket resolution with automated escalation to IT staff when necessary.
--   **Pattern Detection:** Automatically clusters similar tickets to identify systemic issues and notify IT leadership.
--   **RAG (Retrieval-Augmented Generation):** Uses vector embeddings to provide agents with up-to-date institutional context from markdown documents.
+## 📖 Table of Contents
 
-## 🏗️ System Architecture
+- [🌟 Project Overview](#-project-overview)
+- [🤖 The AI Agents](#-the-ai-agents)
+- [🛡️ Privacy & Safety (Local-First)](#️-privacy--safety-local-first)
+- [⚙️ Technical Architecture](#️-technical-architecture)
+- [🚀 Getting Started](#-getting-started)
+- [🛠️ Key Features](#️-key-features)
+- [🧪 Testing & Development](#-testing--development)
+- [📖 API & Documentation](#-api--documentation)
 
--   **Backend:** FastAPI (Python 3.11+) with SQLAlchemy and SQLite.
--   **Frontend:** React 18 (Vite) with TailwindCSS and React Router.
--   **AI Engine:** 
-    -   **Cloud:** Google Gemini API for general triage and conversation.
-    -   **Local:** Ollama (Llama 3.1:8b) for processing sensitive institutional data (FERPA/Student Records).
--   **Database:** SQLite managed by Alembic for migrations.
--   **Automation:** APScheduler for background distress sweeps and ticket auto-resolution.
+---
 
-## 🛡️ AI Safety & Privacy
+## 🌟 Project Overview
 
-MESA is designed with a "Local First" approach for sensitive data:
--   **FERPA Protection:** Data schemas are scanned locally for sensitive patterns before any processing.
--   **Private Inference:** Student distress signals and data schemas are processed using **local Ollama instances**. No PII from these modules is sent to external cloud APIs.
--   **Confidence Gating:** Agent 1 will automatically escalate any ticket where its resolution confidence falls below 70%.
+MESA (Mines Enterprise Support & Advising) is more than a chatbot; it's an intelligent coordination layer for university operations. It connects disparate institutional signals—from IT support tickets to student engagement data—into a unified, actionable dashboard.
+
+### Target Audiences:
+- **IT Operations:** Automate triage, detect systemic outages (clustering), and keep institutional knowledge up-to-date via RAG.
+- **Data Stewards:** Automate the generation of data dictionaries and monitor for "breaking" schema changes in institutional databases.
+- **Academic Advisors:** Proactively identify students at risk of academic failure using non-PII engagement signals.
+
+---
+
+## 🤖 The AI Agents
+
+MESA employs a multi-agent system where each agent is specialized for its domain and privacy requirements.
+
+| Agent | Name | Model | Function |
+| :--- | :--- | :--- | :--- |
+| **Agent 1** | Help Desk Triage | **Gemini 2.0 Flash** | Classifies and prioritizes IT tickets; attempts auto-resolution using Knowledge Base. |
+| **Agent 2** | Edify Dictionary | **Local Llama 3.1** | Generates data dictionaries from schema uploads; detects FERPA-sensitive fields. |
+| **Agent 3** | Distress Warning | **Local Llama 3.1** | Scans Canvas/engagement signals to flag students at risk of academic distress. |
+| **Agent 4** | Conversationalist | **Gemini 2.0 Flash** | Manages interactive support threads with users; escalates to staff when confidence is low. |
+
+---
+
+## 🛡️ Privacy & Safety (Local-First)
+
+MESA is built on a **Security-First** philosophy. Institutional data and Student Records (FERPA) are treated with the highest care:
+
+-   **Private Inference:** All processing of sensitive data (Student Distress signals and database schemas) happens **locally via Ollama**. No PII (Personally Identifiable Information) from these modules is ever sent to cloud APIs.
+-   **FERPA Shield:** Agent 2 scans every schema upload for sensitive patterns (SSN, GPA, etc.) and flags them for local processing only.
+-   **Confidence Gating:** Agents will automatically escalate to human staff if their internal confidence score for a resolution falls below 70%.
+-   **Self-Healing Clusters:** When a systemic issue is detected, Agent 2 can be triggered to perform a "System Audit," automatically resolving related tickets once the underlying data issue is documented.
+
+---
+
+## ⚙️ Technical Architecture
+
+### **Backend (Python 3.11+)**
+-   **FastAPI:** High-performance asynchronous API framework.
+-   **SQLAlchemy + Alembic:** Robust ORM and database migration management.
+-   **RAG Engine:** Custom vector search using **Google Gemini Embeddings** and NumPy for institutional knowledge retrieval.
+-   **APScheduler:** Manages background tasks (Distress sweeps, pattern detection, auto-resolution).
+
+### **Frontend (React 18)**
+-   **Vite:** Modern, ultra-fast build tool.
+-   **TailwindCSS:** Utility-first styling for a clean, Mines-branded UI.
+-   **React Router:** SPA navigation for the Portal and Admin Console.
+
+### **Intelligence Layers**
+-   **Cloud:** Google Gemini Pro/Flash for high-reasoning tasks.
+-   **Local:** Ollama (Llama 3.1:8b) for private data processing.
+
+---
 
 ## 🚀 Getting Started
 
 ### Prerequisites
-
--   **Python 3.11+**
--   **Node.js 18+**
--   **Ollama:** [Download Ollama](https://ollama.com/) and run `ollama pull llama3.1:8b`.
--   **Google AI Studio Key:** Required for Gemini Flash 2.0.
+- **Python 3.11+**
+- **Node.js 18+**
+- **Ollama:** [Download Ollama](https://ollama.com/)
+    - Pull the required model: `ollama pull llama3.1:8b`
+- **Google AI Studio Key:** Get one at [aistudio.google.com](https://aistudio.google.com/)
 
 ### Installation
 
-1.  **Clone & Backend Setup:**
+1.  **Clone the Repository**
+2.  **Backend Setup:**
     ```bash
     pip install -r requirements.txt
     cp .env.example .env
-    # Configure your .env (see Required Environment Variables)
+    # Edit .env with your GEMINI_API_KEY and email settings
     ```
-
-2.  **Frontend Setup:**
+3.  **Database Migration:**
+    ```bash
+    alembic upgrade head
+    ```
+4.  **Frontend Setup:**
     ```bash
     cd frontend
     npm install
     ```
 
-### Required Environment Variables
+### Running the System
 
-Create a `.env` file in the root directory:
+1.  **Start Ollama:** `ollama serve`
+2.  **Start Backend:** `uvicorn backend.main:app --reload --port 8010`
+3.  **Start Frontend:** `cd frontend && npm run dev`
 
-```env
-GEMINI_API_KEY=        # Google AI Studio API Key
-GMAIL_USER=            # Gmail address for SMTP alerts
-GMAIL_APP_PASSWORD=    # Gmail App Password
-ADVISOR_EMAIL=         # Inbox for student distress alerts
-IT_TEAM_EMAIL=         # Inbox for IT escalation/cluster alerts
-CLUSTER_THRESHOLD=5    # Number of similar tickets to trigger a cluster alert
-OLLAMA_BASE_URL=http://localhost:11434
-```
+---
 
-### Running the Application
+## 🛠️ Key Features
 
-1.  **Start Ollama:**
-    ```bash
-    ollama serve
-    ```
+### 1. Pattern Detection & Clustering
+MESA continuously scans incoming tickets. If a threshold (default: 5) of similar tickets is reached, it creates a **Cluster**, notifies the IT team via email, and starts a lifecycle tracking event.
 
-2.  **Start Backend (Terminal 1):**
-    ```bash
-    uvicorn backend.main:app --reload --port 8010
-    ```
+### 2. Retrieval-Augmented Generation (RAG)
+The system embeds the `backend/knowledge_base/` markdown files on startup. Agent 1 uses this "Institutional Memory" to answer complex Mines-specific questions accurately.
 
-3.  **Start Frontend (Terminal 2):**
-    ```bash
-    cd frontend && npm run dev
-    ```
+### 3. Student Distress Monitoring
+Agent 3 periodically scans `backend/mock_data/canvas_signals.json` (simulating a production SIS/LMS feed). It generates detailed risk reports for students showing engagement drop-offs.
 
-## 📖 API Documentation
+### 4. Data Dictionary Self-Healing
+When a cluster is identified as a "Database/Schema" issue, MESA can trigger Agent 2 to process a schema upload. Once processed, MESA can "self-heal" the cluster by auto-resolving all associated tickets with a summary of the fix.
 
-Once the backend is running, you can access the interactive API docs at:
--   **Swagger UI:** [http://localhost:8010/docs](http://localhost:8010/docs)
--   **ReDoc:** [http://localhost:8010/redoc](http://localhost:8010/redoc)
+---
 
-## 🧪 Testing
+## 🧪 Testing & Development
 
-Run the backend test suite using pytest:
+### Backend Tests
+The project uses `pytest`. Run all tests with:
 ```bash
 pytest
 ```
 
-## 🛠️ Troubleshooting
+### Knowledge Base Updates
+To update the agents' knowledge, simply add `.md` files to `backend/knowledge_base/` and restart the server (or delete `kb_index.json` to force a rebuild).
 
--   **Ollama Connection:** Ensure `ollama serve` is running if Agent 2 or 3 fails to respond.
--   **Database Migrations:** If you encounter schema errors, run `alembic upgrade head`. After the very first start, run `alembic stamp head`.
--   **RAG Index:** If the knowledge base isn't being used, delete `kb_index.json` to force a re-index on the next startup.
--   **SMTP Errors:** If emails aren't sending, verify that your Gmail account has "App Passwords" enabled and the credentials in `.env` are correct.
+---
+
+## 📖 API & Documentation
+
+Interactive documentation is available at:
+- **Swagger UI:** `http://localhost:8010/docs`
+- **ReDoc:** `http://localhost:8010/redoc`
+
+---
+
+*MESA is an internal tool developed for the Colorado School of Mines. Unauthorized use or distribution is prohibited.*
