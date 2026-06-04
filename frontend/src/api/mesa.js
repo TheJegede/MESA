@@ -25,12 +25,6 @@ export async function getClusters() {
   return _json(await fetch(`${BASE}/clusters`), 'GET /clusters')
 }
 
-export async function triggerAgent2(clusterId) {
-  return _json(
-    await fetch(`${BASE}/clusters/trigger?cluster_id=${clusterId}`, { method: 'POST' }),
-    'POST /clusters/trigger'
-  )
-}
 
 export async function getClusterTickets(clusterId) {
   return _json(await fetch(`${BASE}/clusters/${clusterId}/tickets`), `GET /clusters/${clusterId}/tickets`)
@@ -114,12 +108,7 @@ export async function getConfig() {
   return _json(await fetch(`${BASE}/config`), 'GET /config')
 }
 
-export async function notifyItTeam(clusterId) {
-  return _json(
-    await fetch(`${BASE}/clusters/notify-it?cluster_id=${clusterId}`, { method: 'POST' }),
-    'POST /clusters/notify-it'
-  )
-}
+
 
 export async function getTicketMessages(ticketId) {
   return _json(await fetch(`${BASE}/tickets/${ticketId}/messages`), `GET /tickets/${ticketId}/messages`)

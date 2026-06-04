@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react'
-import { getClusters, getTickets, getConfig, getClusterTickets, getClusterEvents, triggerAgent2, notifyItTeam } from '../api/mesa'
+import { getClusters, getTickets, getConfig, getClusterTickets, getClusterEvents } from '../api/mesa'
 
 const TC_FILTERS = ["All", "Edify", "Banner", "Canvas", "OneDrive", "Workday"];
 
@@ -84,7 +84,6 @@ function ClusterDrillDown({ cluster, onRefresh }) {
   const [events, setEvents] = useState(null);
   const [loadingTickets, setLoadingTickets] = useState(true);
   const [loadingEvents, setLoadingEvents] = useState(false);
-  const [actionMsg, setActionMsg] = useState(null);
 
   useEffect(() => {
     setLoadingTickets(true);
@@ -97,54 +96,8 @@ function ClusterDrillDown({ cluster, onRefresh }) {
     getClusterEvents(cluster.id).then(setEvents).finally(() => setLoadingEvents(false));
   }, [tab, cluster.id]);
 
-  const handleTrigger = () => {
-    triggerAgent2(cluster.id)
-      .then(() => { setActionMsg("Agent 2 triggered. IT notified to upload schema."); onRefresh(); })
-      .catch(() => setActionMsg("Trigger failed — check backend logs."));
-  };
-
-  const handleNotify = () => {
-    notifyItTeam(cluster.id)
-      .then(() => { setActionMsg("IT team notified via email."); onRefresh(); })
-      .catch(() => setActionMsg("Notification failed — check SMTP config."));
-  };
-
-  const showTrigger = cluster.dict_eligible && cluster.threshold_hit && !cluster.agent2_triggered && cluster.state === "active";
-  const showNotify  = cluster.threshold_hit && !cluster.it_notified && cluster.state === "active";
-
   return (
     <div style={{ background: "var(--surface)", borderTop: "1px solid var(--border)", borderBottom: "1px solid var(--border)" }}>
-      {/* Action strip */}
-      {(showTrigger || showNotify) && (
-        <div className="flex items-center gap-3 px-5 py-3" style={{ paddingLeft: 50, borderBottom: "1px solid var(--border)" }}>
-          {showTrigger && (
-            <button
-              onClick={handleTrigger}
-              style={{
-                background: "var(--blaster-blue)", color: "#fff",
-                border: "none", borderRadius: 6,
-                fontSize: 12, fontWeight: 600, fontFamily: "Montserrat",
-                padding: "6px 14px", cursor: "pointer",
-              }}
-            >▶ Trigger Agent 2</button>
-          )}
-          {showNotify && (
-            <button
-              onClick={handleNotify}
-              style={{
-                background: "#fff", color: "var(--dark-blue)",
-                border: "1px solid var(--border)", borderRadius: 6,
-                fontSize: 12, fontWeight: 600, fontFamily: "Montserrat",
-                padding: "6px 14px", cursor: "pointer",
-              }}
-            >Notify IT →</button>
-          )}
-          {actionMsg && (
-            <span style={{ fontSize: 12, color: "var(--mines-green)", fontWeight: 600 }}>{actionMsg}</span>
-          )}
-        </div>
-      )}
-
       {/* Tab bar */}
       <div className="flex" style={{ paddingLeft: 50, borderBottom: "1px solid var(--border)" }}>
         {["tickets", "history"].map(t => (

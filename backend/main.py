@@ -469,51 +469,7 @@ def get_clusters_history(db: Session = Depends(get_db)):
     return result
 
 
-# ── POST /clusters/trigger ────────────────────────────────────────────────────
 
-@app.post("/clusters/trigger")
-def trigger_agent2(cluster_id: int, db: Session = Depends(get_db)):
-    cluster = db.query(Cluster).filter_by(id=cluster_id).first()
-    if not cluster:
-        raise HTTPException(status_code=404, detail="Cluster not found")
-    cluster.agent2_triggered = True
-    db.commit()
-    return {"status": "triggered", "cluster": cluster.system}
-
-
-# ── POST /clusters/notify-it ─────────────────────────────────────────────────
-
-@app.post("/clusters/notify-it")
-def notify_it_team(cluster_id: int, db: Session = Depends(get_db)):
-    cluster = db.query(Cluster).filter_by(id=cluster_id).first()
-    if not cluster:
-        raise HTTPException(status_code=404, detail="Cluster not found")
-    if not IT_TEAM_EMAIL:
-        raise HTTPException(status_code=503, detail="IT_TEAM_EMAIL not configured")
-    result = send_email(
-        to_addr=IT_TEAM_EMAIL,
-        subject=f"MESA Alert: {cluster.system} cluster threshold reached — {cluster.topic}",
-        body=(
-            f"A support ticket cluster has exceeded the alert threshold and requires IT attention.\n\n"
-            f"System: {cluster.system}\n"
-            f"Topic: {cluster.topic}\n"
-            f"Ticket count: {cluster.count} (threshold: {CLUSTER_THRESHOLD})\n\n"
-            f"This pattern was detected automatically by MESA. "
-            f"Please review and assign to the appropriate team.\n\n"
-            f"View in MESA admin: http://localhost:5173/admin/clusters"
-        ),
-    )
-    log = EmailLog(
-        to_addr=IT_TEAM_EMAIL,
-        subject=f"IT alert: {cluster.system}/{cluster.topic}",
-        success=result["success"],
-        error_msg=result.get("error"),
-    )
-    db.add(log)
-    if result["success"]:
-        cluster.it_notified = True
-    db.commit()
-    return {"status": "notified", "success": result["success"]}
 
 
 # ── GET /dashboard-stats ──────────────────────────────────────────────────────
