@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react'
-import { getDashboardStats, getClusters, getDictJobs, getEmailLog } from '../api/mesa'
+import { getDashboardStats, getClusters, getDictJobs, getEmailLog, getConfig } from '../api/mesa'
 
 
 function KpiCard({ k }) {
@@ -170,20 +170,20 @@ function StatusBreakdownCard({ breakdown, total }) {
   );
 }
 
-function ClusterRow({ c, max }) {
+function ClusterRow({ c, max, threshold }) {
   const [hover, setHover] = useState(false);
   const pct = Math.min(100, Math.round((c.count / max) * 100));
 
-  // Badge driven by backend state — no frontend threshold comparison needed
+  const aboveThreshold = c.threshold_hit && c.count >= threshold;
   const badge = c.state === "healed"
     ? { label: "Healed",          color: "var(--mines-green)"  }
-    : c.threshold_hit
+    : aboveThreshold
     ? { label: "Above Threshold", color: "var(--colorado-red)" }
     : { label: "Emerging",        color: "var(--silver)"       };
 
   const barColor = c.state === "healed"
     ? "var(--mines-green)"
-    : c.threshold_hit
+    : aboveThreshold
     ? "var(--golden-tech)"
     : "var(--light-blue)";
 
@@ -298,6 +298,7 @@ function Dashboard() {
   const [liveEmailLog, setLiveEmailLog] = useState(null)
   const [liveJobs, setLiveJobs] = useState(null)
   const [ticketMetric, setTicketMetric] = useState('24h')
+  const [threshold, setThreshold] = useState(5)
 
   const max = liveClusters ? Math.max(...liveClusters.map(c => c.count), 1) : 5
 
@@ -306,6 +307,7 @@ function Dashboard() {
       const [stats, clusters, jobs, emailLog] = await Promise.all([
         getDashboardStats(), getClusters(), getDictJobs(), getEmailLog(8),
       ])
+      getConfig().then(cfg => setThreshold(cfg.cluster_threshold)).catch(() => {})
       setLiveStats(stats)
       setLiveClusters(clusters)
       setLiveEmailLog(Array.isArray(emailLog) ? emailLog : [])
@@ -407,7 +409,7 @@ function Dashboard() {
         <div>
           {liveClusters === null
             ? <div style={{ padding: "28px", textAlign: "center", color: "var(--silver)", fontSize: 13 }}>Loading clusters…</div>
-            : liveClusters.map((c) => <ClusterRow key={c.id || (c.system + '-' + c.topic)} c={c} max={max} />)
+            : liveClusters.map((c) => <ClusterRow key={c.id || (c.system + '-' + c.topic)} c={c} max={max} threshold={threshold} />)
           }
         </div>
         <div className="px-5 py-3 flex items-center justify-between" style={{ borderTop: "1px solid var(--border)", background: "var(--surface)", borderRadius: "0 0 8px 8px" }}>
