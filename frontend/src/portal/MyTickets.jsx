@@ -173,7 +173,11 @@ function ThreadPanel({ ticket, onStatusChange }) {
         </div>
       ) : (
         <div style={{ textAlign: 'center', padding: '10px 0', fontSize: 12, color: '#81848A' }}>
-          {status === 'resolved' ? 'Ticket resolved. Thank you.' : 'Ticket was automatically closed after inactivity.'}
+          {status === 'resolved'
+            ? 'Ticket resolved. Thank you.'
+            : ticket.auto_resolved
+              ? 'Ticket automatically resolved. Glad we could help!'
+              : 'Ticket was automatically closed after inactivity.'}
         </div>
       )}
     </div>

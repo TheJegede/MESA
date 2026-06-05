@@ -236,7 +236,7 @@ def _serialize_message(m: TicketMessage) -> dict:
 
 class TicketCreate(BaseModel):
     text: str
-    user_email: Optional[str] = None
+    user_email: str
 
 
 # ── POST /tickets ────────────────────────────────────────────────────────────
@@ -879,6 +879,16 @@ def post_ticket_message(ticket_id: int, payload: MessageCreate, db: Session = De
             )
             db.add(log)
             db.commit()
+    elif ai_result.get("resolved") and ticket.status not in ("resolved", "auto_resolved"):
+        ticket.status = "auto_resolved"
+        ticket.auto_resolved = True
+        system_msg = TicketMessage(
+            ticket_id=ticket_id,
+            sender="system",
+            content="This ticket has been automatically resolved based on your confirmation that the issue is fixed.",
+        )
+        db.add(system_msg)
+        db.commit()
     else:
         ticket.status = "ai_responded"
         db.commit()
@@ -886,6 +896,7 @@ def post_ticket_message(ticket_id: int, payload: MessageCreate, db: Session = De
     return {
         "ai_response": ai_result["response"],
         "escalated": escalated,
+        "resolved": ai_result.get("resolved", False),
         "ticket_status": ticket.status,
     }
 

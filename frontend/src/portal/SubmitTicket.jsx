@@ -39,13 +39,14 @@ export default function SubmitTicket() {
       <form onSubmit={handleSubmit}>
         <div style={{ marginBottom: 16 }}>
           <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#21314D', marginBottom: 6, fontFamily: 'Montserrat' }}>
-            Your Email (optional — for resolution notification)
+            Your Email *
           </label>
           <input
             type="email"
             value={email}
             onChange={e => setEmail(e.target.value)}
             placeholder="you@mines.edu"
+            required
             style={{ width: '100%', padding: '10px 14px', border: '1px solid #CFDCE9', borderRadius: 6, fontSize: 14, color: '#21314D', outline: 'none', boxSizing: 'border-box' }}
           />
         </div>
@@ -73,7 +74,7 @@ export default function SubmitTicket() {
         </div>
         <button
           type="submit"
-          disabled={loading || !text.trim()}
+          disabled={loading || !text.trim() || !email.trim()}
           style={{
             background: loading ? '#879EC3' : '#09396C', color: '#fff',
             fontFamily: 'Montserrat', fontWeight: 700, fontSize: 14,

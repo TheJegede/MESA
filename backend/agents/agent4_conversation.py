@@ -21,7 +21,8 @@ Rules:
 - Set "escalate" to true ONLY when the user clearly indicates your guidance did not resolve their issue (e.g., "still not working", "tried that, didn't help", "still broken", "nothing worked", "same error", "still happening").
 - Do not escalate prematurely — if the user is reporting the problem for the first time, attempt a resolution first.
 - If you genuinely cannot resolve the issue with available knowledge, escalate.
-- Always respond in JSON with this exact structure: {"response": "...", "escalate": false}
+- Set "resolved" to true ONLY when the user explicitly confirms the issue is no longer happening (e.g., "it worked", "that fixed it", "working now", "i can access it now", "all sorted", "got it working", "that did it", "issue resolved", "fixed"). Gratitude alone ("thanks", "ok", "understood") does NOT count — there must be explicit confirmation the problem is gone.
+- Always respond in JSON with this exact structure: {"response": "...", "escalate": false, "resolved": false}
 - Never expose internal system names or architecture in responses."""
 
 
@@ -65,10 +66,12 @@ Respond with JSON only: {{"response": "your response here", "escalate": false}}"
         return {
             "response": result.get("response", "I was unable to generate a response. Please try again."),
             "escalate": bool(result.get("escalate", False)),
+            "resolved": bool(result.get("resolved", False)),
         }
     except Exception as e:
         logger.error("Agent 4: response generation failed: %s", e)
         return {
             "response": "I'm having trouble processing your request right now. Please try again in a moment.",
             "escalate": False,
+            "resolved": False,
         }

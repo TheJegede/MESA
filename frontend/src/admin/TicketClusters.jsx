@@ -177,10 +177,11 @@ function ClusterDrillDown({ cluster, onRefresh }) {
 function ClusterTableRow({ c, threshold, isExpanded, onToggle, onRefresh }) {
   const [hover, setHover] = useState(false);
 
-  // Badge based on backend state + threshold_hit flag (not frontend count comparison)
+  // Badge based on current count vs threshold. threshold_hit flag is kept true in backend
+  // to prevent double-firing alerts, but badge must reflect actual current ticket count.
   const stateConfig = c.state === "healed"
     ? { bar: "var(--mines-green)",   badge: "Healed",           badgeColor: "var(--mines-green)",  rowBg: "rgba(128,195,66,0.05)"  }
-    : c.threshold_hit
+    : (c.threshold_hit && c.count >= threshold)
     ? { bar: "var(--golden-tech)",   badge: "Above Threshold",  badgeColor: "var(--colorado-red)", rowBg: "rgba(204,70,40,0.03)"   }
     : { bar: "var(--light-blue)",    badge: "Emerging",         badgeColor: "var(--dark-gray)",    rowBg: "transparent"            };
 

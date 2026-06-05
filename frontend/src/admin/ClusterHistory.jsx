@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react'
-import { getClusterHistory } from '../api/mesa'
+import { getClusterHistory, getConfig } from '../api/mesa'
 
 const EVENT_META = {
   activated:     { label: 'Activated',      color: '#09396C', bg: 'rgba(9,57,108,0.12)' },
@@ -74,7 +74,7 @@ function EventRow({ ev, isLast }) {
   )
 }
 
-function ClusterCard({ c }) {
+function ClusterCard({ c, threshold }) {
   const [open, setOpen] = useState(false)
   const sm = STATE_META[c.state] || STATE_META.active
   const cycleCount = c.events.filter(e => e.event_type === 'activated' || e.event_type === 'reactivated').length
@@ -118,7 +118,7 @@ function ClusterCard({ c }) {
               DICT
             </span>
           )}
-          {c.threshold_hit && c.state === 'active' && (
+          {c.threshold_hit && c.state === 'active' && c.count >= threshold && (
             <span style={{ fontSize: 10, fontWeight: 600, color: '#C08B0A', background: 'rgba(241,185,26,0.15)', padding: '2px 7px', borderRadius: 4 }}>
               ABOVE THRESHOLD
             </span>
@@ -163,6 +163,7 @@ export default function ClusterHistory() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
   const [filter, setFilter] = useState('all') // all | active | healed
+  const [threshold, setThreshold] = useState(5)
 
   const load = () => {
     getClusterHistory()
@@ -172,6 +173,7 @@ export default function ClusterHistory() {
 
   useEffect(() => {
     load()
+    getConfig().then(cfg => setThreshold(cfg.cluster_threshold)).catch(() => {})
     const id = setInterval(load, 30000)
     return () => clearInterval(id)
   }, [])
@@ -179,7 +181,7 @@ export default function ClusterHistory() {
   const active = clusters.filter(c => c.state === 'active')
   const healed = clusters.filter(c => c.state === 'healed')
   const totalEvents = clusters.reduce((s, c) => s + c.events.length, 0)
-  const thresholdHit = clusters.filter(c => c.threshold_hit && c.state === 'active').length
+  const thresholdHit = clusters.filter(c => c.threshold_hit && c.state === 'active' && c.count >= threshold).length
 
   const visible = filter === 'all' ? clusters : clusters.filter(c => c.state === filter)
 
@@ -249,7 +251,7 @@ export default function ClusterHistory() {
         </div>
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-          {visible.map(c => <ClusterCard key={c.id} c={c} />)}
+          {visible.map(c => <ClusterCard key={c.id} c={c} threshold={threshold} />)}
         </div>
       )}
     </div>
