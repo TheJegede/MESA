@@ -26,14 +26,16 @@ Return ONLY a JSON object with this structure:
 {{
   "dictionary": [{{
     "field_name": "exact column name",
-    "data_type": "string|integer|float|date|boolean|id",
+    "data_type": "<choose ONE: string, integer, float, date, boolean, id>",
     "description": "Plain English description",
-    "source_system": "Banner|Workday|Canvas|Slate|Edify|unknown",
-    "sensitivity": "public|internal|restricted|ferpa_protected",
+    "source_system": "<choose ONE: Banner, Workday, Canvas, Slate, Edify, unknown>",
+    "sensitivity": "<choose ONE: public, internal, restricted, ferpa_protected>",
     "example_value": "realistic example value"
   }}],
   "change_note": "Markdown formatted impact analysis"
-}}"""
+}}
+
+IMPORTANT: For data_type, source_system, and sensitivity — output exactly ONE value per field. Do NOT pipe-join multiple values."""
 
 
 def _scan_for_ferpa(columns: list) -> list:
@@ -175,13 +177,17 @@ def _call_ollama_and_save(schema_text: str, delta_summary: str, source_path: str
             {"role": "user", "content": prompt},
         ],
         format="json",
-        options={"num_predict": 1200},
+        options={"num_predict": 4096},
         keep_alive=-1,
     )
     raw = response['message']['content']
     result = _extract_json_object(raw)
     entries = result.get("dictionary", [])
     change_note = result.get("change_note", "No impact analysis generated.")
+
+    for entry in entries:
+        if FERPA_PATTERN.search(entry.get("field_name", "")):
+            entry["sensitivity"] = "ferpa_protected"
 
     os.makedirs(OUTPUTS_DIR, exist_ok=True)
     timestamp = datetime.datetime.now(datetime.timezone.utc).strftime("%Y%m%d_%H%M%S")

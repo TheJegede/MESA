@@ -265,13 +265,13 @@ function DictEntryRow({ e }) {
           fontSize: 11, fontWeight: 500,
           padding: "2px 8px", borderRadius: 4,
           border: "1px solid var(--border)",
-        }}>{e.data_type}</span>
+        }}>{(e.data_type || "").split("|")[0] || "—"}</span>
       </div>
       <div>
-        <DPSystemPill name={e.source_system || "—"} />
+        <DPSystemPill name={(e.source_system || "—").split("|")[0]} />
       </div>
       <div>
-        <SensitivityPill s={e.sensitivity} />
+        <SensitivityPill s={(e.sensitivity || "").split("|")[0]} />
       </div>
       <div style={{ fontSize: 12.5, color: "var(--dark-gray)", lineHeight: 1.45 }}>
         {e.description}
